@@ -37,7 +37,7 @@ Run the following (can run again, will automatically overwrite previous version)
 gcloud run deploy chris-test --source=. \
   --region=europe-west4 --no-allow-unauthenticated \
   --memory=4G --timeout=15m --platform=managed \
-  --concurrency=1
+  --concurrency=80
 ```
 
 Add service worker permission to launch from PubSub:
@@ -106,14 +106,14 @@ gcloud pubsub subscriptions add-iam-policy-binding chris-test \
 Send a message with appropriate attribute for filter:
 ```
 gcloud pubsub topics publish chris-test \
-  --message='{"msg": "This will apear in Cloud Run logs!"}'
+  --message='{"msg": "This will apear in Cloud Run logs!"}' \
   --attribute='type=model'
 ```
 
 This message will fail (because the app wants JSON in the message body) and go to DLQ:
 ```
 gcloud pubsub topics publish chris-test \
-  --message="This will fail, and retry five times"
+  --message="This will fail, and retry five times" \
   --attribute='type=model'
 ```
 
