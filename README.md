@@ -78,13 +78,20 @@ And DLQ sub:
 ```
 gcloud pubsub subscriptions create chris-test-dlq \
   --topic='projects/oxeo-main/topics/chris-test-dlq' \
+
+```
+
+Get proj number and service account:
+```
+PROJ_NUMBER=$(gcloud projects list \
+--filter="$(gcloud config get-value project)" \
+--format="value(PROJECT_NUMBER)")
+
+PUBSUB_SERV_AC="service-$PROJ_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com"
 ```
 
 DLQ permisssions:
 ```
-PROJ_NUMBER=292453623103
-PUBSUB_SERV_AC="service-$PROJ_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com"
-
 gcloud pubsub topics add-iam-policy-binding chris-test-dlq \
   --member="serviceAccount:$PUBSUB_SERV_AC" \
   --role=roles/pubsub.publisher
