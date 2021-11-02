@@ -36,7 +36,8 @@ Run the following (can run again, will automatically overwrite previous version)
 ```
 gcloud run deploy chris-test --source=. \
   --region=europe-west4 --no-allow-unauthenticated \
-  --memory=4G --timeout=15m --platform=managed
+  --memory=4G --timeout=15m --platform=managed \
+  --concurrency=1
 ```
 
 Add service worker permission to launch from PubSub:
@@ -61,11 +62,12 @@ gcloud pubsub topics create chris-test
 gcloud pubsub topics create chris-test-dlq
 ```
 
-Create subscription:
+Create subscription with filter
 ```
 gcloud pubsub subscriptions create chris-test \
   --topic='projects/oxeo-main/topics/chris-test' \
   --push-endpoint=$GCR_URL/api/ \
+  --message-filter='attributes.type = "model"' \
   --push-auth-service-account=$SERV_AC \
   --ack-deadline=600 \
   --dead-letter-topic=chris-test-dlq \
@@ -101,15 +103,25 @@ gcloud pubsub subscriptions add-iam-policy-binding chris-test \
   --role=roles/pubsub.subscriber
 ```
 
-Send a message:
+Send a message with appropriate attribute for filter:
 ```
 gcloud pubsub topics publish chris-test \
-  --message='{"msg": "hello!"}'
+  --message='{"msg": "This will apear in Cloud Run logs!"}'
+  --attribute='type=model'
 ```
 
 This message will fail (because the app wants JSON in the message body) and go to DLQ:
 ```
-gcloud pubsub topics publish chris-test --message="This should fail!"
+gcloud pubsub topics publish chris-test \
+  --message="This will fail, and retry five times"
+  --attribute='type=model'
+```
+
+This message won't be subscribed because it has a different attribute:
+```
+gcloud pubsub topics publish chris-test \
+  --message='{"msg": "This won't be picked up by any subscriber"}' \
+  --attribute='type=foobar'
 ```
 
 Pull failed messages with:
