@@ -85,7 +85,6 @@ DLQ permisssions:
 PROJ_NUMBER=292453623103
 PUBSUB_SERV_AC="service-$PROJ_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com"
 
-
 gcloud pubsub topics add-iam-policy-binding chris-test-dlq \
   --member="serviceAccount:$PUBSUB_SERV_AC" \
   --role=roles/pubsub.publisher
@@ -99,4 +98,14 @@ Send a message:
 ```
 gcloud pubsub topics publish chris-test \
   --message='{"msg": "hello!"}'
+```
+
+This message will fail (because the app wants JSON in the message body) and go to DLQ:
+```
+gcloud pubsub topics publish chris-test --message="This should fail!"
+```
+
+Pull failed messages with:
+```
+gcloud pubsub subscriptions pull chris-test-dlq
 ```
