@@ -57,6 +57,14 @@ export GCR_URL=$(gcloud run services describe chris-test \
 ```
 
 ## Pub/Sub
+Links:
+- https://cloud.google.com/pubsub/docs/building-pubsub-messaging-system
+- https://github.com/googleapis/python-pubsub/tree/main/samples/snippets/quickstart
+- https://cloud.google.com/pubsub/docs/samples/pubsub-publisher-retry-settings
+
+Max ack deadline is 10 minutes.
+
+
 Create topic:
 ```
 gcloud pubsub topics create chris-test
@@ -80,8 +88,7 @@ gcloud pubsub subscriptions create chris-test \
 And DLQ sub:
 ```
 gcloud pubsub subscriptions create chris-test-dlq \
-  --topic='projects/oxeo-main/topics/chris-test-dlq' \
-
+  --topic='projects/oxeo-main/topics/chris-test-dlq'
 ```
 
 Get proj number and service account:
@@ -131,9 +138,16 @@ gcloud pubsub subscriptions pull chris-test-dlq
 ```
 
 ## Tasks
+- https://cloud.google.com/tasks/docs/dual-overview
+
+Max timeout is 30 minutes. Can be greater with AppEngine... Set in [JSON request body](https://cloud.google.com/tasks/docs/reference/rest/v2/projects.locations.queues.tasks).
+
 Create queue:
 ```
-gcloud tasks queues create chris-queue
+gcloud tasks queues create chris-queue \
+  --location=europe-west2 \
+  --log-sampling-ratio=1 \
+  --max-attempts=2 --max-backoff=60s
 ```
 
 Check details:
@@ -163,3 +177,28 @@ Same, using Python:
 python tasks.py \
   '{"message": {"data": {"msg": "hello from tasks script attempt 2!"}}}'
 ```
+
+Check status (errors once task is done):
+```
+gcloud tasks describe --queue=chris-queue "$TASK_ID"
+```
+
+## Logging
+
+```
+gcloud logging logs list
+
+gcloud logging read "logName=projects/oxeo-main/logs/cloudtasks.googleapis.com%2Ftask_operations_log"
+```
+
+Python:
+```
+python logs.py
+```
+
+## Monitoring task completion
+Options:
+1. Write a file to Storage, or something to BigQuery etc and monitor with a Sensor/similar
+2. Publish a message back to Pub/Sub on completion
+3. Watch Cloud Tasks task status, and assume success once Task is gone
+4. Use Cloud Logging to track task status (created, dispatched, responded)

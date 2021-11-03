@@ -1,6 +1,3 @@
-# https://cloud.google.com/pubsub/docs/building-pubsub-messaging-system
-# https://github.com/googleapis/python-pubsub/tree/main/samples/snippets/quickstart
-
 import json
 from concurrent import futures
 from typing import Callable
