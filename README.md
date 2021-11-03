@@ -29,12 +29,12 @@ pack build --builder=gcr.io/buildpacks/builder sample-python
 docker run -it -ePORT=8080 -p8080:8080 chris-test
 ```
 
-## Coudrun
+## Cloud Run
 [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run)
 
 Run the following (can run again, will automatically overwrite previous version):
 ```
-gcloud run deploy chris-test --source=. \
+gcloud run deploy chris-test --source=run/ \
   --region=europe-west4 --no-allow-unauthenticated \
   --memory=4G --timeout=15m --platform=managed \
   --concurrency=80
@@ -42,7 +42,7 @@ gcloud run deploy chris-test --source=. \
 
 Add service worker permission to launch from PubSub:
 ```
-SERV_AC='sat-extractor@oxeo-main.iam.gserviceaccount.com'
+export SERV_AC='sat-extractor@oxeo-main.iam.gserviceaccount.com'
 
 gcloud run services add-iam-policy-binding chris-test \
   --role=roles/run.invoker --region=europe-west4 \
@@ -51,11 +51,12 @@ gcloud run services add-iam-policy-binding chris-test \
 
 Get endpoint:
 ```
-GCR_URL=$(gcloud run services describe chris-test \
+export GCR_URL=$(gcloud run services describe chris-test \
   --platform=managed --region=europe-west4 \
   --format='value(status.url)')
 ```
 
+## Pub/Sub
 Create topic:
 ```
 gcloud pubsub topics create chris-test
@@ -85,11 +86,11 @@ gcloud pubsub subscriptions create chris-test-dlq \
 
 Get proj number and service account:
 ```
-PROJ_NUMBER=$(gcloud projects list \
+export PROJ_NUMBER=$(gcloud projects list \
 --filter="$(gcloud config get-value project)" \
 --format="value(PROJECT_NUMBER)")
 
-PUBSUB_SERV_AC="service-$PROJ_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com"
+export PUBSUB_SERV_AC="service-$PROJ_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com"
 ```
 
 DLQ permisssions:
@@ -127,4 +128,38 @@ gcloud pubsub topics publish chris-test \
 Pull failed messages with:
 ```
 gcloud pubsub subscriptions pull chris-test-dlq
+```
+
+## Tasks
+Create queue:
+```
+gcloud tasks queues create chris-queue
+```
+
+Check details:
+```
+gcloud tasks queues describe chris-queue
+```
+
+Set vars:
+```
+export PROJECT_ID="oxeo-main"
+export LOCATION_ID="europe-west2"
+export QUEUE_ID="chris-queue"
+```
+
+Send an HTTP task to the Cloud Run endpoint:
+```
+gcloud tasks create-http-task --queue=chris-queue \
+  --url="$GCR_URL/api/" my-task \
+  --location=$LOCATION_ID \
+  --header='Content-Type:application/json' \
+  --body-content='{"message": {"data": {"msg": "Hello!"}}}' \
+  --oidc-service-account-email=$SERV_AC
+```
+
+Same, using Python:
+```
+python tasks.py \
+  '{"message": {"data": {"msg": "hello from tasks script attempt 2!"}}}'
 ```
