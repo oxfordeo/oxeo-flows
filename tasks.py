@@ -18,8 +18,6 @@ def create_task(
     client = tasks_v2.CloudTasksClient()
     parent = client.queue_path(project, location, queue)
 
-    gcr_url
-
     task = {
         # "dispatchDeadline": "1800s",
         "http_request": {

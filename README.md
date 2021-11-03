@@ -164,8 +164,9 @@ export QUEUE_ID="chris-queue"
 
 Send an HTTP task to the Cloud Run endpoint:
 ```
-gcloud tasks create-http-task --queue=chris-queue \
-  --url="$GCR_URL/api/" my-task \
+gcloud tasks create-http-task "my-task-name-12345" \
+  --queue=chris-queue \
+  --url="$GCR_URL/api/" \
   --location=$LOCATION_ID \
   --header='Content-Type:application/json' \
   --body-content='{"message": {"data": {"msg": "Hello!"}}}' \
