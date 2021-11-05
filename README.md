@@ -1,22 +1,24 @@
 # oxeo-cloud
 
-Forked from: https://github.com/GoogleCloudPlatform/buildpack-samples/tree/master/sample-python
+## Prefect
+Look in [prefect](./prefect/) directory.
 
-## Local dev
+## Cloud Run
+Look in [run](./run/) directory.
+### Local dev
 ```
 pip install -r requirements.txt
 FLASK_DEBUG=True FLASK_APP=web.py flask run -p 8000
 ```
 
-##
-Test
+Test:
 ```
 curl -X POST http://127.0.0.1:8000/api/ \
   -H 'Content-Type: application/json' \
   -d '{"message": {"data": {"msg": "Hello!"}}}'
 ```
 
-## Buildpack
+### Buildpack
 Install Buildpack:
 ```
 sudo add-apt-repository ppa:cncf-buildpacks/pack-cli
@@ -25,13 +27,9 @@ sudo apt install pack-cli
 
 Run Locally with Buildpacks & Docker:
 ```
-pack build --builder=gcr.io/buildpacks/builder sample-python
+pack build --path=run/ --builder=gcr.io/buildpacks/builder chris-test
 docker run -it -ePORT=8080 -p8080:8080 chris-test
 ```
-
-## Cloud Run
-[![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run)
-
 Run the following (can run again, will automatically overwrite previous version):
 ```
 gcloud run deploy chris-test --source=run/ \
@@ -57,13 +55,13 @@ export GCR_URL=$(gcloud run services describe chris-test \
 ```
 
 ## Pub/Sub
+Look at [pub.py](./pub.py) file.
 Links:
-- https://cloud.google.com/pubsub/docs/building-pubsub-messaging-system
-- https://github.com/googleapis/python-pubsub/tree/main/samples/snippets/quickstart
-- https://cloud.google.com/pubsub/docs/samples/pubsub-publisher-retry-settings
+[1](https://cloud.google.com/pubsub/docs/building-pubsub-messaging-system)
+[2](https://github.com/googleapis/python-pubsub/tree/main/samples/snippets/quickstart)
+[3](https://cloud.google.com/pubsub/docs/samples/pubsub-publisher-retry-settings)
 
 Max ack deadline is 10 minutes.
-
 
 Create topic:
 ```
@@ -185,7 +183,7 @@ gcloud tasks describe --queue=chris-queue "$TASK_ID"
 ```
 
 ## Logging
-
+Look at [logs.py](./logs.py) file.
 ```
 gcloud logging logs list
 
