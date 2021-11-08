@@ -4,3 +4,4 @@ prefect[viz,google]==0.15.7
 pystac
 shapely
 satextractor @ git+ssh://git@github.com/FrontierDevelopmentLab/sat-extractor.git
+typer

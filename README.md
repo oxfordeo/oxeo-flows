@@ -15,6 +15,11 @@ mkvirtualenv prefect && workon prefect
 pip install -r requirements.txt
 ```
 
+May need to install Graphviz to visualize DAGs locally:
+```
+sudo apt install graphviz
+```
+
 ## Getting started
 Tell core that we're working with Cloud and authenticate:
 ```
