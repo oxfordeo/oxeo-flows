@@ -1,18 +1,7 @@
 import prefect
 from prefect import task, Flow, Parameter
-from prefect.tasks.prefect import RenameFlowRun
 from prefect.client import Client
 from prefect.tasks.shell import ShellTask
-
-rename_flow = RenameFlowRun()
-
-
-@task
-def say_hello(lake):
-    logger = prefect.context.get("logger")
-    logger.info(f"Hello, Cloud!, do {lake}")
-    with open("output.txt", "a") as f:
-        print(f"Hello, Cloud, do {lake}", file=f)
 
 
 @task
@@ -21,6 +10,14 @@ def rename_flow_run(lake):
     flow_run_name = f"run_{lake}"
     client = Client()
     return client.set_flow_run_name(flow_run_id, flow_run_name)
+
+
+@task
+def say_hello(lake):
+    logger = prefect.context.get("logger")
+    logger.info(f"Hello, Cloud!, do {lake}")
+    with open("output.txt", "a") as f:
+        print(f"Hello, Cloud, do {lake}", file=f)
 
 
 ls = ShellTask(command="ls", return_all=True)
