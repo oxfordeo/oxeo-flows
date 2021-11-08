@@ -12,7 +12,7 @@ Log in at [Prefect Cloud](https://cloud.prefect.io/) and get an API key from the
 ```
 workon pf
 mkvirtualenv prefect && workon prefect
-pip install requests pandas prefect[viz,google,redis,gcp]
+pip install -r requirements.txt
 ```
 
 ## Getting started
