@@ -10,8 +10,7 @@ Log in at [Prefect Cloud](https://cloud.prefect.io/) and get an API key from the
 
 ## Install
 ```
-workon pf
-mkvirtualenv prefect && workon prefect
+mkvirtualenv prefect
 pip install -r requirements.txt
 ```
 
@@ -24,8 +23,10 @@ sudo apt install graphviz
 Tell core that we're working with Cloud and authenticate:
 ```
 prefect backend cloud
-prefect auth login --key "key-from-prefect.io"
+prefect auth login --key <your-api-key>
 ```
+
+(If you get authentication errors, you may need to delete `~/.prefect/`.)
 
 Then run the Flow files to register the Flow with the cloud:
 ```
