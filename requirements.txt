@@ -1,7 +1,6 @@
-requests
-pandas
-prefect[viz,google]==0.15.7
-pystac
-shapely
+pandas>=1.3.4
+pystac>=1.1.0
+shapely>=1.8.0
 satextractor @ git+ssh://git@github.com/FrontierDevelopmentLab/sat-extractor.git
-typer
+prefect[viz,gcp] @ git+ssh://git@github.com/PrefectHQ/prefect.git
+typer>=0.4.0
