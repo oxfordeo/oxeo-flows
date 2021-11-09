@@ -28,12 +28,17 @@ prefect auth login --key <your-api-key>
 
 (If you get authentication errors, you may need to delete `~/.prefect/`.)
 
-Then run the Flow files to register the Flow with the cloud:
+### Run a flow locally
 ```
-python flow_file.py
+prefect run -p flows/extract.py
 ```
 
-Then start the agent wherever you want that run:
+### Register a flow
+```
+prefect register --project <proj-name> -p flows/extract.py
+```
+
+### Start the agent to listen for jobs
 ```
 prefect agent local start
 ```

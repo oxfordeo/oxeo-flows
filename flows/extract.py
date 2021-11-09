@@ -7,9 +7,11 @@ import subprocess
 import prefect
 from prefect import task, Flow, Parameter
 from prefect.client import Client
+from prefect.executors import DaskExecutor
+from prefect.storage import GitHub
+from prefect.run_configs import LocalRun
 from shapely.geometry import Polygon, MultiPolygon
 import pystac
-import typer
 import geopandas as gpd
 
 # from satextractor.builder.gcp_builder import build_gcp
@@ -197,83 +199,68 @@ def rename_flow_run(
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
-def create_flow():
-    with Flow("extract") as flow:
-        # parameters
-        # aoi_id = Parameter(name="aoi_id", required=True)
-        aoi_id = str(uuid4())[:8]
-        # geojson = Parameter(name="geojson", require=False)
-        aoi_path = Parameter(name="aoi_path")
-
-        credentials = Parameter(name="credentials", default="../token.json")
-        project = Parameter(name="project", default="oxeo-main")
-        gcp_region = Parameter(name="gcp_region", default="europe-west4")
-        user_id = Parameter(name="user_id", default="oxeo")
-        storage_root = Parameter(name="storage_root", default="oxeo-water")
-
-        start_date = Parameter(name="start_date", default="2020-01-01")
-        end_date = Parameter(name="end_date", default="2020-02-01")
-        constellations = Parameter(
-            name="constellations",
-            default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
-        )
-
-        bbox_size = Parameter(name="bbox_size", default=10000)
-        split_m = Parameter(name="split_m", default=100000)
-        chunk_size = Parameter(name="chunk_size", default=1000)
-
-        # rename the Flow run to reflect the parameters
-        rename_flow_run(aoi_id)
-
-        # run the flow
-        aoi = get_geometry(aoi_path)
-        storage_path = get_storage_path(storage_root, aoi_id)
-        built = build(project, gcp_region, storage_root, credentials, user_id)
-        item_collection = stac(credentials, start_date, end_date, constellations, aoi)
-        tiles = tiler(bbox_size, aoi)
-        extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
-        prepped = preparer(
-            credentials,
-            constellations,
-            storage_path,
-            bbox_size,
-            chunk_size,
-            tiles,
-            extraction_tasks,
-        )
-        deployer(
-            project,
-            user_id,
-            credentials,
-            storage_path,
-            chunk_size,
-            extraction_tasks,
-            upstream_tasks=[built, prepped],
-        )
-
-    return flow
+executor = DaskExecutor()
+storage = GitHub(
+    repo="oxfordeo/oxeo-pipes",
+    path="flows/extract.py",
+    access_token_secret="GITHUB",
+)
 
 
-app = typer.Typer()
+with Flow(
+    "extract",
+    executor=executor,
+    storage=storage,
+    run_config=LocalRun(labels=["pc"]),
+) as flow:
+    # parameters
+    # aoi_id = Parameter(name="aoi_id", required=True)
+    aoi_id = str(uuid4())[:8]
+    # geojson = Parameter(name="geojson", require=False)
+    aoi_path = Parameter(name="aoi_path")
 
+    credentials = Parameter(name="credentials", default="../token.json")
+    project = Parameter(name="project", default="oxeo-main")
+    gcp_region = Parameter(name="gcp_region", default="europe-west4")
+    user_id = Parameter(name="user_id", default="oxeo")
+    storage_root = Parameter(name="storage_root", default="oxeo-water")
 
-@app.command()
-def register(project_name: str):
-    flow = create_flow()
-    flow.register(project_name=project_name)
+    start_date = Parameter(name="start_date", default="2020-01-01")
+    end_date = Parameter(name="end_date", default="2020-02-01")
+    constellations = Parameter(
+        name="constellations",
+        default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
+    )
 
+    bbox_size = Parameter(name="bbox_size", default=10000)
+    split_m = Parameter(name="split_m", default=100000)
+    chunk_size = Parameter(name="chunk_size", default=1000)
 
-@app.command()
-def run(aoi_path: Path):
-    flow = create_flow()
-    flow.run(aoi_path=aoi_path)
+    # rename the Flow run to reflect the parameters
+    rename_flow_run(aoi_id)
 
-
-@app.command()
-def visualize():
-    flow = create_flow()
-    flow.visualize()
-
-
-if __name__ == "__main__":
-    app()
+    # run the flow
+    aoi = get_geometry(aoi_path)
+    storage_path = get_storage_path(storage_root, aoi_id)
+    built = build(project, gcp_region, storage_root, credentials, user_id)
+    item_collection = stac(credentials, start_date, end_date, constellations, aoi)
+    tiles = tiler(bbox_size, aoi)
+    extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
+    prepped = preparer(
+        credentials,
+        constellations,
+        storage_path,
+        bbox_size,
+        chunk_size,
+        tiles,
+        extraction_tasks,
+    )
+    deployer(
+        project,
+        user_id,
+        credentials,
+        storage_path,
+        chunk_size,
+        extraction_tasks,
+        upstream_tasks=[built, prepped],
+    )
