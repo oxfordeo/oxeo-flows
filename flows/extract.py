@@ -1,5 +1,7 @@
+import json
 from typing import List
 from typing import Union
+from typing import Tuple
 from pathlib import Path
 from uuid import uuid4
 import subprocess
@@ -24,12 +26,37 @@ from satextractor.models import Tile, ExtractionTask
 
 
 @task
-def get_geometry(
-    aoi_path: Path,
-) -> Union[Polygon, MultiPolygon]:
+def get_id_and_geom(
+    aoi: str,
+) -> Tuple[str, Union[Polygon, MultiPolygon]]:
     logger = prefect.context.get("logger")
-    logger.info("Getting lake AOI geometry")
-    return gpd.read_file(aoi_path).unary_union
+    logger.info("Determining how to parse AOI")
+    try:  # first assume that aoi is dict GeoJSON
+        geom = gpd.GeoDataFrame.from_features(aoi).unary_union
+        aoi_id = str(uuid4())[:8]
+        logger.info("Loaded AOI as dict GeoJSON and created aoi_id")
+    except TypeError:
+        try:  # then try with aoi as a str GeoJSON
+            geom = gpd.GeoDataFrame.from_features(json.load(aoi)).unary_union
+            aoi_id = str(uuid4())[:8]
+            logger.info("Loaded AOI as str GeoJSON and created aoi_id")
+        except json.decoder.JSONDecodeError:
+            try:  # then try load it from a file
+                geom = gpd.read_file(aoi).unary_union
+                aoi_id = str(uuid4())[:8]
+                logger.info("Loaded AOI as file and created aoi_id")
+            except ValueError:  # fall back to pulling it from the DB
+                aoi_id = aoi
+                geom = get_db_geom(aoi_id)
+                logger.info("Used AOI as id to load from DB")
+    return aoi_id, geom
+
+
+@task
+def get_db_geom(
+    aoi_id: str,
+) -> Union[Polygon, MultiPolygon]:
+    raise NotImplementedError("DB geometry functionality not created yet!")
 
 
 @task
@@ -214,10 +241,7 @@ with Flow(
     run_config=LocalRun(labels=["pc"]),
 ) as flow:
     # parameters
-    # aoi_id = Parameter(name="aoi_id", required=True)
-    aoi_id = str(uuid4())[:8]
-    # geojson = Parameter(name="geojson", require=False)
-    aoi_path = Parameter(name="aoi_path")
+    aoi = Parameter(name="aoi", required=True)
 
     credentials = Parameter(name="credentials", default="../token.json")
     project = Parameter(name="project", default="oxeo-main")
@@ -236,15 +260,17 @@ with Flow(
     split_m = Parameter(name="split_m", default=100000)
     chunk_size = Parameter(name="chunk_size", default=1000)
 
+    # figure out geom and ID
+    aoi_id, aoi_geom = get_id_and_geom(aoi)
+
     # rename the Flow run to reflect the parameters
     rename_flow_run(aoi_id)
 
     # run the flow
-    aoi = get_geometry(aoi_path)
     storage_path = get_storage_path(storage_root, aoi_id)
     built = build(project, gcp_region, storage_root, credentials, user_id)
-    item_collection = stac(credentials, start_date, end_date, constellations, aoi)
-    tiles = tiler(bbox_size, aoi)
+    item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
+    tiles = tiler(bbox_size, aoi_geom)
     extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
     prepped = preparer(
         credentials,

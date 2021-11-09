@@ -30,7 +30,7 @@ prefect auth login --key <your-api-key>
 
 ### Run a flow locally
 ```
-prefect run -p flows/extract.py
+prefect run -p flows/extract.py --param aoi=thee.geojson
 ```
 
 ### Register a flow
