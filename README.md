@@ -29,8 +29,11 @@ prefect auth login --key-file <your-api-key>
 (If you get authentication errors, you may need to delete `~/.prefect/`.)
 
 ### Run a flow locally
+This works even if the Flow is set up with VertexRun etc.
 ```
-prefect run -p flows/extract.py --param aoi=thee.geojson
+prefect run -p flows/extract.py \
+  --param aoi=aoi.geojson \
+  --param credentials=token.json
 ```
 
 ### Register a flow

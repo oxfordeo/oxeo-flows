@@ -11,7 +11,7 @@ from prefect import task, Flow, Parameter
 from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.storage import GitHub
-from prefect.run_configs import VertexRun
+from prefect.run_configs import VertexRun, LocalRun
 from shapely.geometry import Polygon, MultiPolygon
 import pystac
 import geopandas as gpd
@@ -40,7 +40,7 @@ def get_id_and_geom(
             geom = gpd.GeoDataFrame.from_features(json.load(aoi)).unary_union
             aoi_id = str(uuid4())[:8]
             logger.info("Loaded AOI as str GeoJSON and created aoi_id")
-        except json.decoder.JSONDecodeError:
+        except (json.decoder.JSONDecodeError, AttributeError):
             try:  # then try load it from a file
                 geom = gpd.read_file(aoi).unary_union
                 aoi_id = str(uuid4())[:8]
@@ -230,7 +230,9 @@ def rename_flow_run(
     lake: int,
 ) -> None:
     logger = prefect.context.get("logger")
+    old_name = prefect.context.get("flow_run_name")
     new_name = f"run_{lake}"
+    logger.info(f"Original flow run name: {old_name}")
     logger.info(f"Rename the Flow Run to {new_name}")
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
