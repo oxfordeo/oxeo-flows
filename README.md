@@ -23,7 +23,7 @@ sudo apt install graphviz
 Tell core that we're working with Cloud and authenticate:
 ```
 prefect backend cloud
-prefect auth login --key <your-api-key>
+prefect auth login --key-file <your-api-key>
 ```
 
 (If you get authentication errors, you may need to delete `~/.prefect/`.)
@@ -43,4 +43,41 @@ prefect register --project <proj-name> -p flows/extract.py
 prefect agent local start
 ```
 
+## Docker agent setup
+First need to [authorize access to GCS container registry](https://cloud.google.com/container-registry/docs/advanced-authentication#gcloud-helper).
+
+### Generate SSH key
+```
+ssh-keygen -t ed25519 -f keys/deploy_key
+```
+And add it to GitHub.
+
+### Create image in GCR registry
+```
+gcloud builds submit . \
+  --tag=gcr.io/oxeo-main/oxeo-flows \
+  --ignore-file=.dockerignore
+```
+
+Or locally:
+```
+docker build . -t oxeo-flows
+```
+
+### Enable access to GCR registry
+Create a Service Account with `Container Registry` permissions. This is only for the agent, so need to run before starting it.
+```
+gcloud auth activate-service-account \
+  --key-file=path/to/token.json
+
+gcloud auth configure-docker
+```
+
+```
+prefect agent docker start \
+  --labels=pc \
+  --env PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
+```
+
+# Control
 And control from the web UI!

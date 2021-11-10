@@ -11,7 +11,7 @@ from prefect import task, Flow, Parameter
 from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.storage import GitHub
-from prefect.run_configs import LocalRun
+from prefect.run_configs import DockerRun
 from shapely.geometry import Polygon, MultiPolygon
 import pystac
 import geopandas as gpd
@@ -93,10 +93,13 @@ def build(
         "services",
         "describe",
         f"{user_id}-stacextractor",
+        f"--project={project}",
         f"--region={gcp_region}",
         "--platform=managed",
     ]
     p = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(p.stdout)
+    logger.info(p.stderr)
     assert p.stderr == ""
 
     cmd = [
@@ -105,8 +108,11 @@ def build(
         "subscriptions",
         "describe",
         f"{user_id}-stacextractor",
+        f"--project={project}",
     ]
     p = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(p.stdout)
+    logger.info(p.stderr)
     assert p.stderr == ""
 
     return True
@@ -232,18 +238,23 @@ storage = GitHub(
     path="flows/extract.py",
     access_token_secret="GITHUB",
 )
+run_config = DockerRun(
+    labels=["pc"],
+    image="gcr.io/oxeo-main/oxeo-flows",
+    env={},
+)
 
 
 with Flow(
     "extract",
     executor=executor,
     storage=storage,
-    run_config=LocalRun(labels=["pc"]),
+    run_config=run_config,
 ) as flow:
     # parameters
     aoi = Parameter(name="aoi", required=True)
 
-    credentials = Parameter(name="credentials", default="../token.json")
+    credentials = Parameter(name="credentials", default="token.json")
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")
