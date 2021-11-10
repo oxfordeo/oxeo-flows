@@ -89,5 +89,12 @@ prefect agent vertex start \
   --env PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
 ```
 
+Create image with above:
+```
+gcloud builds submit agent/ \
+  --tag=gcr.io/oxeo-main/prefect-agent \
+  --ignore-file=.dockerignore
+```
+
 # Control
 And control from the web UI!
