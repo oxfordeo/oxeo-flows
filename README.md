@@ -75,7 +75,17 @@ gcloud auth configure-docker
 
 ```
 prefect agent docker start \
-  --labels=pc \
+  --label=pc \
+  --env PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
+```
+
+## Running on Google Vertex
+```
+prefect agent vertex start \
+  --label=pc \
+  --project=oxeo-main \
+  --region-name=europe-west4 \
+  --service-account <service-acc-email> \
   --env PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
 ```
 

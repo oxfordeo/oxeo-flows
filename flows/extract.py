@@ -11,7 +11,7 @@ from prefect import task, Flow, Parameter
 from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.storage import GitHub
-from prefect.run_configs import DockerRun
+from prefect.run_configs import VertexRun
 from shapely.geometry import Polygon, MultiPolygon
 import pystac
 import geopandas as gpd
@@ -87,33 +87,36 @@ def build(
     # )
 
     logger.info("Checking that Google Cloud Run and PubSub resources exist")
+    name = f"{user_id}-stacextractor"
     cmd = [
         "gcloud",
         "run",
         "services",
         "describe",
-        f"{user_id}-stacextractor",
+        name,
         f"--project={project}",
         f"--region={gcp_region}",
         "--platform=managed",
     ]
     p = subprocess.run(cmd, capture_output=True, text=True)
-    logger.info(p.stdout)
-    logger.info(p.stderr)
-    assert p.stderr == ""
+    if not p.stderr == "":
+        logger.error(p.stderr)
+        logger.error(f"Couldn't find Cloud Run: {name}")
+        raise Exception
 
     cmd = [
         "gcloud",
         "pubsub",
         "subscriptions",
         "describe",
-        f"{user_id}-stacextractor",
+        name,
         f"--project={project}",
     ]
     p = subprocess.run(cmd, capture_output=True, text=True)
-    logger.info(p.stdout)
-    logger.info(p.stderr)
-    assert p.stderr == ""
+    if not p.stderr == "":
+        logger.error(p.stderr)
+        logger.error(f"Couldn't find PubSub subscription: {name}")
+        raise Exception
 
     return True
 
@@ -238,10 +241,13 @@ storage = GitHub(
     path="flows/extract.py",
     access_token_secret="GITHUB",
 )
-run_config = DockerRun(
-    labels=["pc"],
-    image="gcr.io/oxeo-main/oxeo-flows",
+# Available machine types listed here
+# https://cloud.google.com/vertex-ai/docs/training/configure-compute
+run_config = VertexRun(
+    labels=["pc", "vertex"],
     env={},
+    image="gcr.io/oxeo-main/oxeo-flows",
+    machine_type="e2-highmem-2",
 )
 
 
