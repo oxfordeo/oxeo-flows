@@ -64,12 +64,19 @@ gcloud builds submit . \
   --ignore-file=.dockerignore
 ```
 
+Or using the `cloudbuild.yaml`:
+```
+gcloud builds submit --config=cloudbuild.yaml .
+```
+
 Or locally:
 ```
 docker build . -t oxeo-flows
 ```
 
 Automatically build the image from GitHub using Cloud Build triggers.
+Specify `Dockerfile`, `cloudbuild.yaml` and `requirements.txt` in the "Included files".
+Flows will be pulled from GitHub, so we don't need the image to rebuild with each update!
 
 ### Enable access to GCR registry
 Create a Service Account with `Container Registry` permissions. This is only for the agent, so need to run before starting it.
@@ -106,9 +113,9 @@ Run the Agent image on Vertex:
 ```
 gcloud ai custom-jobs create \
  --region=europe-west4 \
- --display-name=prefect-agent \
+ --display-name=prefect-agent-test2 \
  --service-account=prefect@oxeo-main.iam.gserviceaccount.com \
- --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/prefect-flows:latest
+ --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/oxeo-flows:latest
 ```
 
 ## Secrets

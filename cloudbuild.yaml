@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    secretEnv:
+      - 'SSH'
+      - 'PREFECT'
+    args:
+      - '-c'
+      - 'echo $$SSH > key &&
+          docker build .
+          --tag=eu.gcr.io/$PROJECT_ID/oxeo-flows
+          --build-arg=PREFECT=$$PREFECT'
+images:
+  - 'eu.gcr.io/$PROJECT_ID/oxeo-flows'
+availableSecrets:
+  secretManager:
+  - versionName: 'projects/$PROJECT_ID/secrets/chris-gh-ssh/versions/1'
+    env: 'SSH'
+  - versionName: 'projects/$PROJECT_ID/secrets/prefect-cloud-api-key/versions/1'
+    env: 'PREFECT'
