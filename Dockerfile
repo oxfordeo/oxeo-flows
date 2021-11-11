@@ -4,6 +4,9 @@ FROM python:3.9.7-slim-buster
 
 ARG PREFECT
 ENV PREFECT__CLOUD__API_KEY $PREFECT
+COPY key /root/.ssh/id_rsa
+COPY token token.json
+ENV GOOGLE_APPLICATION_CREDENTIALS token.json
 
 # Instructions from https://cloud.google.com/sdk/docs/install
 RUN apt-get update && \
@@ -17,7 +20,6 @@ RUN apt-get update && \
     apt-get install -y google-cloud-sdk
 
 # Set up GitHub SSH key
-COPY key /root/.ssh/id_rsa
 RUN sed -i -e "s/-----BEGIN OPENSSH PRIVATE KEY-----/&\n/"\
       -e "s/-----END OPENSSH PRIVATE KEY-----/\n&/"\
       -e "s/\S\{70\}/&\n/g"\
