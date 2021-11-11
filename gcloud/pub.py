@@ -3,7 +3,6 @@ from concurrent import futures
 from typing import Callable
 
 from google.cloud import pubsub_v1
-
 from typer import run
 
 
@@ -22,7 +21,7 @@ def get_callback(
 
 def main(project_id: str, topic_id: str, msg: str) -> None:
     publisher = pubsub_v1.PublisherClient.from_service_account_file(
-        "/home/chris/Work/Oxeo/sat-extractor/output/cordoba/token.json",
+        "secrets/oxeo-main-prefect.json",
     )
     topic_path = publisher.topic_path(project_id, topic_id)
     # pub(publisher, topic_path, msg)

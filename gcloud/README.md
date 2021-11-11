@@ -37,7 +37,7 @@ gcloud run deploy chris-test --source=run/ \
 
 Add service worker permission to launch from PubSub:
 ```
-export SERV_AC='sat-extractor@oxeo-main.iam.gserviceaccount.com'
+export SERV_AC='prefect@oxeo-main.iam.gserviceaccount.com'
 
 gcloud run services add-iam-policy-binding chris-test \
   --role=roles/run.invoker --region=europe-west4 \
