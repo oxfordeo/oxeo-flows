@@ -25,7 +25,7 @@ sudo apt install graphviz
 Tell core that we're working with Cloud and authenticate:
 ```
 prefect backend cloud
-prefect auth login --key-file <your-api-key>
+prefect auth login --key <your-api-key>
 ```
 
 (If you get authentication errors, you may need to delete `~/.prefect/`.)

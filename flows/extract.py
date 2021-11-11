@@ -278,7 +278,7 @@ storage = GitHub(
 run_config = VertexRun(
     labels=["pc", "vertex"],
     env={},
-    image="eu.gcr.io/oxeo-main/prefect-flows:latest",
+    image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
     machine_type="e2-highmem-2",
 )
 with Flow(
