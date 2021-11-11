@@ -131,5 +131,11 @@ More:
 
 Also need to add `Secret Manager Secret Accessor` role to the Cloud Build service account (e.g. `1234567@cloudbuild.gserviceaccount.com`).
 
+### Summary of Secrets being used and where they are
+- SSH token authorised to access Chris GitHub acc, stored in GCP Secret Manager and in GitHub secrets attached to `oxeo-flows` repo.
+- Prefect API key stored in the same two places as above
+- GitHub Personal Access Token (Chris acc) stored in Prefect secrets
+- Service Account JSON key for sat-extractor is stored in GCP Secret Manager
+
 # Control
 And control from the web UI!
