@@ -1,5 +1,6 @@
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import List, Tuple, Union
 from uuid import uuid4
@@ -7,6 +8,7 @@ from uuid import uuid4
 import geopandas as gpd
 import prefect
 import pystac
+from google.cloud import bigquery
 from prefect import Flow, Parameter, task
 from prefect.client import Client
 from prefect.executors import DaskExecutor
@@ -16,11 +18,21 @@ from satextractor.deployer import deploy_tasks
 from satextractor.models import ExtractionTask, Tile
 from satextractor.preparer.gcp_preparer import gcp_prepare_archive
 from satextractor.scheduler import create_tasks_by_splits
-
-# from satextractor.builder.gcp_builder import build_gcp
 from satextractor.stac import gcp_region_to_item_collection
 from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
+
+
+@task
+def rename_flow_run(
+    lake: int,
+) -> None:
+    logger = prefect.context.get("logger")
+    old_name = prefect.context.get("flow_run_name")
+    new_name = f"run_{lake}"
+    logger.info(f"Original flow run name: {old_name}")
+    logger.info(f"Rename the Flow Run to {new_name}")
+    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
 @task
@@ -74,15 +86,6 @@ def build(
     user_id: str,
 ) -> None:
     logger = prefect.context.get("logger")
-
-    # logger.info("Building Google Cloud resources")
-    # build_gcp(
-    # credentials=credentials,
-    # project=project,
-    # region=gcp_region,
-    # storage_root=storage_root,
-    # user_id=user_id,
-    # )
 
     logger.info("Checking that Google Cloud Run and PubSub resources exist")
     name = f"{user_id}-stacextractor"
@@ -209,35 +212,59 @@ def deployer(
     storage_path: str,
     chunk_size: int,
     extraction_tasks: List[ExtractionTask],
-) -> None:
+) -> str:
     logger = prefect.context.get("logger")
     logger.info("Deploy tasks to Cloud RUn")
 
     topic = f"projects/{project}/topics/{'-'.join([user_id, 'stacextractor'])}"
-    deploy_tasks(
+    job_id = deploy_tasks(
         credentials=credentials,
         extraction_tasks=extraction_tasks,
         storage_path=storage_path,
         chunk_size=chunk_size,
         topic=topic,
     )
+    return job_id
 
 
 @task
-def rename_flow_run(
-    lake: int,
+def check_deploy_completion(
+    project: str,
+    user_id: str,
+    job_id: str,
+    extraction_tasks: List[ExtractionTask],
 ) -> None:
     logger = prefect.context.get("logger")
-    old_name = prefect.context.get("flow_run_name")
-    new_name = f"run_{lake}"
-    logger.info(f"Original flow run name: {old_name}")
-    logger.info(f"Rename the Flow Run to {new_name}")
-    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
+    tot = len(extraction_tasks)
 
+    prev_done = -1
+    loops_unchanged = 0
+    max_loops_no_progress = 5
+    base_sleep = 10
 
-@task
-def check_deploy_completion(task_id):
-    ...
+    while True:
+        client = bigquery.Client()
+        table = f"{project}.satextractor.{user_id}"
+        query = f"SELECT COUNT(msg_type) FROM {table} WHERE job_id = '{job_id}' AND msg_type = 'FINISHED'"
+        df = client.query(query).result().to_dataframe()
+        done = int(df.iat[0, 0])
+        logger.info(f"Cloud Run extraction tasks: {done} of {tot}")
+
+        if done == tot:
+            logger.info(f"All {tot} extraction tasks done!")
+            return
+        elif done == prev_done:
+            loops_unchanged += 1
+            if loops_unchanged >= max_loops_no_progress:
+                logger.info(f"No progress on tasks after {loops_unchanged} loops")
+                raise Exception("No further progress on tasks")
+        else:
+            loops_unchanged = 0
+
+        # Exponential backoff, only when nothing has changed
+        sleep = base_sleep * (2 ** (loops_unchanged + 1) - 1)
+        logger.info(f"Sleep for {sleep} seconds")
+        time.sleep(sleep)
 
 
 executor = DaskExecutor()
@@ -254,8 +281,6 @@ run_config = VertexRun(
     image="eu.gcr.io/oxeo-main/prefect-flows:latest",
     machine_type="e2-highmem-2",
 )
-
-
 with Flow(
     "extract",
     executor=executor,
@@ -303,7 +328,7 @@ with Flow(
         tiles,
         extraction_tasks,
     )
-    deployer(
+    job_id = deployer(
         project,
         user_id,
         credentials,
@@ -312,3 +337,5 @@ with Flow(
         extraction_tasks,
         upstream_tasks=[built, prepped],
     )
+
+    check_deploy_completion(project, user_id, job_id, extraction_tasks)
