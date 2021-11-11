@@ -2,5 +2,5 @@ pandas>=1.3.4
 pystac>=1.1.0
 shapely>=1.8.0
 satextractor @ git+ssh://git@github.com/FrontierDevelopmentLab/sat-extractor.git
-prefect[viz,gcp,github] @ git+ssh://git@github.com/PrefectHQ/prefect.git
+prefect[viz,gcp,github]>=0.15.9
 typer>=0.4.0
