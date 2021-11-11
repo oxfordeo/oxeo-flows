@@ -1,4 +1,6 @@
-# oxeo-pipes
+# oxeo-flows
+🤟 Sorry, renamed the repo again...
+
 Repository for managing pipelines etc, using Prefect for orchestration.
 
 Look in [gcloud/](gcloud/) to see some sample scripts and commands specific to Google Cloud.
