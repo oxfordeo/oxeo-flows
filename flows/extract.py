@@ -1,28 +1,26 @@
 import json
-from typing import List
-from typing import Union
-from typing import Tuple
-from pathlib import Path
-from uuid import uuid4
 import subprocess
+from pathlib import Path
+from typing import List, Tuple, Union
+from uuid import uuid4
 
+import geopandas as gpd
 import prefect
-from prefect import task, Flow, Parameter
+import pystac
+from prefect import Flow, Parameter, task
 from prefect.client import Client
 from prefect.executors import DaskExecutor
+from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
-from prefect.run_configs import VertexRun, LocalRun
-from shapely.geometry import Polygon, MultiPolygon
-import pystac
-import geopandas as gpd
+from satextractor.deployer import deploy_tasks
+from satextractor.models import ExtractionTask, Tile
+from satextractor.preparer.gcp_preparer import gcp_prepare_archive
+from satextractor.scheduler import create_tasks_by_splits
 
 # from satextractor.builder.gcp_builder import build_gcp
 from satextractor.stac import gcp_region_to_item_collection
 from satextractor.tiler import split_region_in_utm_tiles
-from satextractor.scheduler import create_tasks_by_splits
-from satextractor.preparer.gcp_preparer import gcp_prepare_archive
-from satextractor.deployer import deploy_tasks
-from satextractor.models import Tile, ExtractionTask
+from shapely.geometry import MultiPolygon, Polygon
 
 
 @task
@@ -237,6 +235,11 @@ def rename_flow_run(
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
+@task
+def check_deploy_completion(task_id):
+    ...
+
+
 executor = DaskExecutor()
 storage = GitHub(
     repo="oxfordeo/oxeo-pipes",
@@ -248,7 +251,7 @@ storage = GitHub(
 run_config = VertexRun(
     labels=["pc", "vertex"],
     env={},
-    image="gcr.io/oxeo-main/oxeo-flows",
+    image="eu.gcr.io/oxeo-main/prefect-flows:latest",
     machine_type="e2-highmem-2",
 )
 

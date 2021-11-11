@@ -58,7 +58,7 @@ And add it to GitHub.
 ### Create image in GCR registry
 ```
 gcloud builds submit . \
-  --tag=gcr.io/oxeo-main/oxeo-flows \
+  --tag=eu.gcr.io/oxeo-main/oxeo-flows \
   --ignore-file=.dockerignore
 ```
 
@@ -69,6 +69,8 @@ docker build . -t oxeo-flows
 
 ### Enable access to GCR registry
 Create a Service Account with `Container Registry` permissions. This is only for the agent, so need to run before starting it.
+
+Only need to do this when running locally:
 ```
 gcloud auth activate-service-account \
   --key-file=path/to/token.json
@@ -76,6 +78,7 @@ gcloud auth activate-service-account \
 gcloud auth configure-docker
 ```
 
+Run the docker agent locally:
 ```
 prefect agent docker start \
   --label=pc \
@@ -83,6 +86,7 @@ prefect agent docker start \
 ```
 
 ## Running on Google Vertex
+To run the agent locally, pushing jobs to Vertex:
 ```
 prefect agent vertex start \
   --label=pc \
@@ -95,8 +99,16 @@ prefect agent vertex start \
 Create image with above:
 ```
 gcloud builds submit agent/ \
-  --tag=gcr.io/oxeo-main/prefect-agent \
+  --tag=eu.gcr.io/oxeo-main/prefect-agent \
   --ignore-file=.dockerignore
+```
+
+Run the Agent image on Vertex:
+```
+gcloud ai custom-jobs create \
+ --region=europe-west4 \
+ --display-name=prefect-agent \
+ --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/prefect-flows:latest
 ```
 
 # Control

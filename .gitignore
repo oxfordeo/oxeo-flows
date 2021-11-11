@@ -1,5 +1,7 @@
 # Custom
 secrets/
+dask-worker-space/
+*.geojson
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

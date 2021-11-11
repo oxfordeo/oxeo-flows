@@ -27,3 +27,14 @@ RUN eval $(ssh-agent) && \
 COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip && \
   pip install -r requirements.txt
+
+# TODO: Get the API key from somewhere else!!
+ENV GOOGLE_APPLICATION_CREDENTIALS token.json
+ENV PREFECT__CLOUD__API_KEY FbXiDK-x0bAJCeU93Rwa6g
+
+# This will be ignore by DockerRun instances
+CMD ["prefect", "agent", "vertex", "start", \
+  "--project=oxeo-main", \
+  "--region-name=europe-west4", \
+  "--service-account=prefect@oxeo-main.iam.gserviceaccount.com", \
+  "--label=vertex"]
