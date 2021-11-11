@@ -69,6 +69,8 @@ Or locally:
 docker build . -t oxeo-flows
 ```
 
+Automatically build the image from GitHub using Cloud Build triggers.
+
 ### Enable access to GCR registry
 Create a Service Account with `Container Registry` permissions. This is only for the agent, so need to run before starting it.
 
@@ -94,24 +96,33 @@ prefect agent vertex start \
   --label=pc \
   --project=oxeo-main \
   --region-name=europe-west4 \
-  --service-account <service-acc-email> \
-  --env PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
+  --service-account=<service-acc-email> \
+  --env=PREFECT__CONTEXT__SECRETS__GITHUB=<github-token>
 ```
 
-Create image with above:
-```
-gcloud builds submit agent/ \
-  --tag=eu.gcr.io/oxeo-main/prefect-agent \
-  --ignore-file=.dockerignore
-```
+The above is in the Dockerfile `CMD`. Executed by the Agent (see below) but ignored by created `VertexRun` instances, where it is overridden.
 
 Run the Agent image on Vertex:
 ```
 gcloud ai custom-jobs create \
  --region=europe-west4 \
  --display-name=prefect-agent \
+ --service-account=prefect@oxeo-main.iam.gserviceaccount.com \
  --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/prefect-flows:latest
 ```
+
+## Secrets
+Service Account JSON token removed from the Dockerfile, as it should be provided automatically by the Vertex instance.
+
+SSH key to install projects from GitHub is currently copied into the Docker image, should be provided by Google Secrets Manager:
+
+Go to Secrets Manager, create new Secret, upload SSH private key with a name. Same for Prefect API key.
+
+More:
+- [Accessomg GitHub from a build via SSH](https://cloud.google.com/build/docs/access-github-from-build)
+- [Using secrets from Secret Manager](https://cloud.google.com/build/docs/securing-builds/use-secrets)
+
+Also need to add `Secret Manager Secret Accessor` role to the Cloud Build service account (e.g. `1234567@cloudbuild.gserviceaccount.com`).
 
 # Control
 And control from the web UI!
