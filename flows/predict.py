@@ -50,6 +50,7 @@ executor = DaskExecutor(
         "machine_type": "n1-highmem-2",
     },
 )
+executor = DaskExecutor(address="tcp://34.90.5.193:8786")
 storage = GitHub(
     repo="oxfordeo/oxeo-flows",
     path="flows/predict.py",
@@ -59,6 +60,7 @@ run_config = VertexRun(
     labels=["vertex"],
     image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
     machine_type="n1-highmem-2",
+    network="projects/292453623103/global/networks/default",
 )
 with Flow(
     "predict",
