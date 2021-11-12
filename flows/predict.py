@@ -39,12 +39,12 @@ def burn(val):
 
 
 executor = DaskExecutor(
-    # GCPCluster docs: https://cloudprovider.dask.org/en/latest/gcp.html
     cluster_class=GCPCluster,
     adapt_kwargs={"maximum": 10},
     cluster_kwargs={
         # "n_workers": 4,
         "projectid": "oxeo-main",
+        "source_image": "packer-1636725840",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
         "zone": "europe-west4-a",
         "machine_type": "n1-highmem-2",
