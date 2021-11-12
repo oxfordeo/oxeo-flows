@@ -121,6 +121,9 @@ gcloud ai custom-jobs create \
  --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/oxeo-flows:latest
 ```
 
+## Dask cluster
+Used [dask-cloud-provider](https://cloudprovider.dask.org/en/latest/gcp.html).
+
 ## Secrets
 Service Account JSON token removed from the Dockerfile, as it should be provided automatically by the Vertex instance.
 
