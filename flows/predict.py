@@ -42,7 +42,7 @@ executor = DaskExecutor(
     cluster_class=GCPCluster,
     adapt_kwargs={"maximum": 10},
     cluster_kwargs={
-        # "n_workers": 4,
+        "n_workers": 1,
         "projectid": "oxeo-main",
         "source_image": "packer-1636725840",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
