@@ -25,11 +25,11 @@ from shapely.geometry import MultiPolygon, Polygon
 
 @task
 def rename_flow_run(
-    lake: int,
+    aoi_id: int,
 ) -> None:
     logger = prefect.context.get("logger")
     old_name = prefect.context.get("flow_run_name")
-    new_name = f"run_{lake}"
+    new_name = f"run_{aoi_id}"
     logger.info(f"Original flow run name: {old_name}")
     logger.info(f"Rename the Flow Run to {new_name}")
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
@@ -269,15 +269,12 @@ def check_deploy_completion(
 
 executor = DaskExecutor()
 storage = GitHub(
-    repo="oxfordeo/oxeo-pipes",
+    repo="oxfordeo/oxeo-flows",
     path="flows/extract.py",
     access_token_secret="GITHUB",
 )
-# Available machine types listed here
-# https://cloud.google.com/vertex-ai/docs/training/configure-compute
 run_config = VertexRun(
-    labels=["pc", "vertex"],
-    env={},
+    labels=["vertex"],
     image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
     machine_type="e2-highmem-2",
 )

@@ -109,6 +109,9 @@ prefect agent vertex start \
 
 The above is in the Dockerfile `CMD`. Executed by the Agent (see below) but ignored by created `VertexRun` instances, where it is overridden.
 
+The VertexRun instances use an image and machine type specified in `VertexRun` in the flow file.
+Available image types are listed [here](https://cloud.google.com/vertex-ai/docs/training/configure-compute).
+
 Run the Agent image on Vertex:
 ```
 gcloud ai custom-jobs create \
