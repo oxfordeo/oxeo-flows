@@ -126,7 +126,6 @@ Used [dask-cloud-provider](https://cloudprovider.dask.org/en/latest/gcp.html).
 
 To get the Dask cluster to work, had to create a Packer image based on the already-built Docker image (see [the notebook](./notebooks/dask.ipynb).
 Then run `packer build packer.json` and get the packer image ID from the output.
-In this case, it's `packer-1636725840`.
 
 Ideally, DaskExecutor should be able to run this to create a temporary cluster.
 This works when I do it locally with `prefect run ...` but not on Prefect Cloud (i.e. `Vertex Run`), it starts the scheduler and then just hangs.
@@ -136,6 +135,13 @@ To make this work, SSL must be disabled, and had to open the VPC Firewall to all
 To get it to work without the open firewall, I [created a VPC peering](https://cloud.google.com/vertex-ai/docs/general/vpc-peering) ([more](https://cloud.google.com/vpc/docs/configure-private-services-access)), and told Vertex to use that [network](https://cloud.google.com/vertex-ai/docs/training/using-private-ip), ([more](https://cloud.google.com/vpc/docs/using-vpc-peering)) by specifying the `network` parameter in [DaskExecutor](https://cloud.google.com/vertex-ai/docs/training/using-private-ip). But it's not working!
 
 Also it's very slow to set up the Vertex instance and then the Dask stuff on top of that...
+
+### Dask-Cloudprovider Issues
+- https://github.com/dask/dask-cloudprovider/issues/288
+- https://github.com/dask/dask-cloudprovider/issues/161
+- https://github.com/dask/dask-cloudprovider/issues/215
+- https://github.com/dask/dask-cloudprovider/issues/229
+
 
 ## Secrets
 Service Account JSON token removed from the Dockerfile, as it should be provided automatically by the Vertex instance.
@@ -156,8 +162,59 @@ Also need to add `Secret Manager Secret Accessor` role to the Cloud Build servic
 - GitHub Personal Access Token (Chris acc) stored in Prefect secrets
 - Service Account JSON key for sat-extractor is stored in GCP Secret Manager
 
+# Helm Chart cluster
+Source: https://towardsdatascience.com/scalable-machine-learning-with-dask-on-google-cloud-5c72f945e768
+
+[Config is here](./helm-chart-dask.yaml).
+
+Do the following in Google Cloud Console:
+```
+gcloud container clusters create \
+  dask-cluster \
+  --machine-type=n1-standard-4 \
+  --num-nodes=2 \
+  --zone=europe-west4-a  \
+  --cluster-version=latest \
+  --network=dask \
+  --subnetwork=dask
+
+kubectl create clusterrolebinding \
+  cluster-admin-binding \
+  --clusterrole=cluster-admin \
+  --user=chris.arderne@oxfordeo.com
+```
+
+Setup Helm (still in Cloud Shell):
+```
+curl https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
+
+helm repo add dask https://helm.dask.org/
+helm repo update
+
+helm install dask-cluster dask/dask -f helm-chart-dask.yaml
+```
+
+[TZ issues with Dask/Prefect](https://github.com/pangeo-data/pangeo-docker-images/issues/125).
+
+See info about running services:
+```
+kubectl get services
+```
+
 # Dataproc
-Tried to create a custom image for Dataproc using [these](https://cloud.google.com/dataproc/docs/guides/dataproc-images) instructions and a bash script based on the Dockerfile, but couldn't get it to play nice with python3.8 and pip...
+Tried to create a custom image for Dataproc using [these](https://cloud.google.com/dataproc/docs/guides/dataproc-images) instructions and a bash script based on the Dockerfile, but couldn't get it to play nice with SSH pip install.
+
+[Script is here](./gcloud/dataproc-dask-install.sh).
+
+```
+python generate_custom_image.py \
+  --image-name=dataproc-dask \
+  --dataproc-version=2.0.24-ubuntu18 \
+  --customization-script=dask.sh \
+  --zone=europe-west4-a \
+  --gcs-bucket=gs://oxeo-dataproc-custom-image \
+  --disk-size=30
+```
 
 # Control
 And control from the web UI!
