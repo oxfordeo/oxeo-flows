@@ -42,15 +42,18 @@ executor = DaskExecutor(
     cluster_class=GCPCluster,
     adapt_kwargs={"maximum": 10},
     cluster_kwargs={
-        "n_workers": 1,
         "projectid": "oxeo-main",
+        "zone": "europe-west4-a",
+        "network": "dask",
+        "machine_type": "n1-highmem-2",
         "source_image": "packer-1636725840",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
-        "zone": "europe-west4-a",
-        "machine_type": "n1-highmem-2",
+        "ngpus": 0,
+        "security": False,
+        "n_workers": 1,
     },
 )
-executor = DaskExecutor(address="tcp://34.90.5.193:8786")
+# executor = DaskExecutor(address="tcp://34.90.5.193:8786")
 storage = GitHub(
     repo="oxfordeo/oxeo-flows",
     path="flows/predict.py",
@@ -60,7 +63,7 @@ run_config = VertexRun(
     labels=["vertex"],
     image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
     machine_type="n1-highmem-2",
-    network="projects/292453623103/global/networks/default",
+    network="projects/292453623103/global/networks/dask",
 )
 with Flow(
     "predict",
