@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 
 FROM python:3.9.7-slim-buster
+ENV PYTHONUNBUFFERED=1
 
 ARG PREFECT
 ENV PREFECT__CLOUD__API_KEY $PREFECT
 COPY key /root/.ssh/id_rsa
 COPY token token.json
 ENV GOOGLE_APPLICATION_CREDENTIALS token.json
+ENV TZ=UTC
 
 # Instructions from https://cloud.google.com/sdk/docs/install
 RUN apt-get update && \
