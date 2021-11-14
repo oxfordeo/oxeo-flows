@@ -45,7 +45,7 @@ executor = DaskExecutor(
         "zone": "europe-west4-a",
         "network": "dask",
         "machine_type": "n1-highmem-2",
-        "source_image": "packer-1636898646",
+        "source_image": "packer-1636915174",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
         # "n_workers": 1,
     },

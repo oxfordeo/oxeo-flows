@@ -1,0 +1,23 @@
+{
+  "builders": [
+    {
+      "type": "googlecompute",
+      "project_id": "oxeo-main",
+      "source_image": "ubuntu-2004-focal-v20211102",
+      "ssh_username": "packer",
+      "zone": "europe-west4-a",
+      "on_host_maintenance": "TERMINATE",
+      "disk_size": "30",
+      "machine_type": "n1-highmem-2",
+      "metadata": {"user-data": ""}
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+        "echo 'Waiting for cloud-init'; while [ ! -f /var/lib/cloud/instance/boot-finished ]; do sleep 1; done; echo 'Done'"
+      ]
+    }
+  ]
+}
