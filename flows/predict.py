@@ -13,11 +13,10 @@ def rename_flow_run(
     aoi_id: int,
 ) -> None:
     logger = prefect.context.get("logger")
-    old_name = prefect.context.get("flow_run_name")
     new_name = f"run_{aoi_id}"
-    logger.info(f"Original flow run name: {old_name}")
     logger.info(f"Rename the Flow Run to {new_name}")
-    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
+    # This fails when doing a local run to a Distributed Dask cluster
+    # Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
 @task
@@ -46,14 +45,13 @@ executor = DaskExecutor(
         "zone": "europe-west4-a",
         "network": "dask",
         "machine_type": "n1-highmem-2",
-        "source_image": "packer-1636725840",
+        "source_image": "packer-1636898646",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
-        "ngpus": 0,
-        "security": False,
-        "n_workers": 1,
+        # "n_workers": 1,
     },
 )
-# executor = DaskExecutor(address="tcp://34.90.5.193:8786")
+executor = DaskExecutor(address="tcp://35.204.252.202:8786")
+# executor = DaskExecutor()
 storage = GitHub(
     repo="oxfordeo/oxeo-flows",
     path="flows/predict.py",
