@@ -47,10 +47,9 @@ executor = DaskExecutor(
         "machine_type": "n1-highmem-2",
         "source_image": "packer-1636915174",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
-        # "n_workers": 1,
     },
 )
-executor = DaskExecutor(address="tcp://35.204.252.202:8786")
+# executor = DaskExecutor(address="tcp://35.204.252.202:8786")
 # executor = DaskExecutor()
 storage = GitHub(
     repo="oxfordeo/oxeo-flows",
