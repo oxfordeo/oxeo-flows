@@ -1,43 +1,85 @@
+from pathlib import Path
+from typing import List
+
+import gcsfs
 import numpy as np
 import prefect
+import zarr
 from dask_cloudprovider.gcp import GCPCluster
-from prefect import Flow, Parameter, task
-from prefect.client import Client
+from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
 
+from oxeo.water.models.pekel.pekel import PekelPredictor
+
 
 @task
-def rename_flow_run(
-    aoi_id: int,
+def get_paths(
+    project: str,
+    credentials: Path,
+    bucket: str,
+    aoi_id: str,
+    constellations: List[str],
+) -> List[Path]:
+    logger = prefect.context.get("logger")
+    logger.info("Getting all tiles for and constellations")
+
+    fs = gcsfs.GCSFileSystem(project=project, token=credentials)
+    tiles = [p.split("/")[-1] for p in fs.ls(f"oxeo-water/{aoi_id}")]
+
+    paths = []
+    for tile in tiles:
+        for cons in constellations:
+            paths.append(f"{bucket}/{aoi_id}/{tile}/{cons}")
+    logger.info(f"Got all paths: {paths}")
+
+    return paths
+
+
+@task
+def create_masks(
+    project: str,
+    credentials: str,
+    path: Path,
 ) -> None:
     logger = prefect.context.get("logger")
-    new_name = f"run_{aoi_id}"
-    logger.info(f"Rename the Flow Run to {new_name}")
-    # This fails when doing a local run to a Distributed Dask cluster
-    # Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
-
-
-@task
-def generate_vals():
-    logger = prefect.context.get("logger")
-    logger.info("Generating 10 random floats")
-    return np.random.rand(10)
-
-
-@task
-def burn(val):
-    logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
-    logger.info(f"Start loop creating arrays on task: {task_full_name}")
-    for a in range(int(0.5 * 2000)):
-        if a % 500 == 0:
-            logger.info(f"This is index: {a} on {task_full_name}")
-        np.random.rand(a, a) ** 2
+    logger.info(f"Creating mask for {path} on: {task_full_name}")
+
+    fs = gcsfs.GCSFileSystem(project=project, token=credentials)
+    predictor = PekelPredictor()
+
+    mapper = fs.get_mapper(f"{path}/data")
+    arr = zarr.open(mapper, "r")
+
+    masks = predictor.predict(
+        arr,
+        bands_indexes={
+            "red": 3,
+            "green": 2,
+            "blue": 1,
+            "nir": 7,
+            "swir1": 11,
+            "swir2": 12,
+        },
+        compute=False,
+    )
+    masks = np.array(masks)
+
+    mask_mapper = fs.get_mapper(f"{path}/masks")
+    mask_arr = zarr.open_array(
+        mask_mapper,
+        "w",
+        shape=masks.shape,
+        chunks=(1, 1000, 1000),
+        dtype=np.uint8,
+    )
+    mask_arr[:] = masks
+    logger.info(f"Successfully created masks for {path} on: {task_full_name}")
 
 
-executor = DaskExecutor(
+ephemeral_executor = DaskExecutor(
     cluster_class=GCPCluster,
     adapt_kwargs={"maximum": 10},
     cluster_kwargs={
@@ -49,8 +91,8 @@ executor = DaskExecutor(
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
     },
 )
-# executor = DaskExecutor(address="tcp://35.204.252.202:8786")
-# executor = DaskExecutor()
+long_executor = DaskExecutor(address="tcp://<ip>:<port>")
+local_executor = DaskExecutor()
 storage = GitHub(
     repo="oxfordeo/oxeo-flows",
     path="flows/predict.py",
@@ -64,13 +106,27 @@ run_config = VertexRun(
 )
 with Flow(
     "predict",
-    executor=executor,
+    executor=local_executor,
     storage=storage,
     run_config=run_config,
 ) as flow:
     # parameters
     aoi_id = Parameter(name="aoi_id", required=True)
-    rename_flow_run(aoi_id)
 
-    vals = generate_vals()
-    burn.map(vals)
+    credentials = Parameter(name="credentials", default="token.json")
+    project = Parameter(name="project", default="oxeo-main")
+    gcp_region = Parameter(name="gcp_region", default="europe-west4")
+    bucket = Parameter(name="bucket", default="oxeo-water")
+
+    constellations = Parameter(
+        name="constellations",
+        default=["sentinel-2"],
+        # default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
+    )
+
+    paths = get_paths(project, credentials, bucket, aoi_id, constellations)
+    create_masks.map(
+        path=paths,
+        project=unmapped(project),
+        credentials=unmapped(credentials),
+    )
