@@ -1,0 +1,28 @@
+name: packer-build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'packer/packer.json'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - name: Build VM image with Packer
+        uses: oxfordeo/packer-action@master
+        with:
+          only: googlecompute
+          secret: ${{ secrets.GCP_PREFECT_SERV_ACC }}
+          template: packer/packer.json
+          options: "-force"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: '/tmp/packer-secret'
