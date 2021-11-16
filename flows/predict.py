@@ -7,11 +7,23 @@ import prefect
 import zarr
 from dask_cloudprovider.gcp import GCPCluster
 from prefect import Flow, Parameter, task, unmapped
+from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
 
 from oxeo.water.models.pekel.pekel import PekelPredictor
+
+
+@task
+def rename_flow_run(
+    aoi_id: int,
+) -> None:
+    logger = prefect.context.get("logger")
+    old_name = prefect.context.get("flow_run_name")
+    new_name = f"run_{aoi_id}"
+    logger.info(f"Rename the Flow Run from {old_name} to {new_name}")
+    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
 @task
@@ -87,7 +99,7 @@ ephemeral_executor = DaskExecutor(
         "zone": "europe-west4-a",
         "network": "dask",
         "machine_type": "n1-highmem-2",
-        "source_image": "packer-1636915174",
+        "source_image": "oxeo-flows",
         "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
     },
 )
@@ -106,7 +118,7 @@ run_config = VertexRun(
 )
 with Flow(
     "predict",
-    executor=local_executor,
+    executor=ephemeral_executor,
     storage=storage,
     run_config=run_config,
 ) as flow:
@@ -123,6 +135,8 @@ with Flow(
         default=["sentinel-2"],
         # default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
     )
+
+    rename_flow_run(aoi_id)
 
     paths = get_paths(project, credentials, bucket, aoi_id, constellations)
     create_masks.map(

@@ -30,8 +30,7 @@ def rename_flow_run(
     logger = prefect.context.get("logger")
     old_name = prefect.context.get("flow_run_name")
     new_name = f"run_{aoi_id}"
-    logger.info(f"Original flow run name: {old_name}")
-    logger.info(f"Rename the Flow Run to {new_name}")
+    logger.info(f"Rename the Flow Run from {old_name} to {new_name}")
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
