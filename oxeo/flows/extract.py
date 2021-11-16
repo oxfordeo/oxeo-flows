@@ -28,7 +28,7 @@ from oxeo.flows import (
     prefect_secret_github_token,
     repo_name,
 )
-from oxeo.flows.util import rename_flow_run
+from oxeo.flows.utils import rename_flow_run
 
 
 @task
