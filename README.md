@@ -11,7 +11,7 @@ Something like what is described [here](https://github.com/PrefectHQ/prefect/iss
 ```
 .
 ├── cloudbuild.yaml      # insert secrets into Cloud Build
-├── requirements.txt     # Requirements all here right now
+├── setup.cfg            # Requirements and things in here
 ├── Dockerfile
 ├── oxeo
 │   └── flows            # Flow logic in here!
@@ -31,7 +31,6 @@ Something like what is described [here](https://github.com/PrefectHQ/prefect/iss
 ### Installation
 Install the dependencies and the library in a virtualenv:
 ```
-pip install -r requirements.txt
 pip install -e .[dev]
 pre-commit install
 ```

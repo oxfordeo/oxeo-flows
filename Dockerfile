@@ -32,9 +32,9 @@ RUN sed -i -e "s/-----BEGIN OPENSSH PRIVATE KEY-----/&\n/"\
     ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
 
 # Install requirements
-COPY requirements.txt requirements.txt
+COPY . oxeo-flows
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install oxeo-flows/
 
 # This will be ignore by VertexRun instances
 CMD ["prefect", "agent", "vertex", "start", \
