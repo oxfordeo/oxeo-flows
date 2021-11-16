@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import List
 
 import prefect
@@ -17,7 +18,7 @@ from oxeo.flows.utils import rename_flow_run
 
 # More task parameters at
 # https://docs.prefect.io/api/latest/core/task.html
-@task(max_retries=0)
+@task(max_retries=1, retry_delay=timedelta(seconds=10))
 def task_one(
     a_word: str,
     # Make sure to provide return type annotations
@@ -36,7 +37,7 @@ def task_one(
     return numbers
 
 
-@task(max_retries=1)
+@task
 def task_two(
     number: int,
 ) -> None:
