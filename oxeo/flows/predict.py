@@ -7,23 +7,23 @@ import prefect
 import zarr
 from dask_cloudprovider.gcp import GCPCluster
 from prefect import Flow, Parameter, task, unmapped
-from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
 
+from oxeo.flows import (
+    dask_gcp_zone,
+    dask_image,
+    dask_network,
+    dask_network_full,
+    dask_projectid,
+    default_gcp_token,
+    docker_oxeo_flows,
+    prefect_secret_github_token,
+    repo_name,
+)
+from oxeo.flows.utils import rename_flow_run
 from oxeo.water.models.pekel.pekel import PekelPredictor
-
-
-@task
-def rename_flow_run(
-    aoi_id: int,
-) -> None:
-    logger = prefect.context.get("logger")
-    old_name = prefect.context.get("flow_run_name")
-    new_name = f"run_{aoi_id}"
-    logger.info(f"Rename the Flow Run from {old_name} to {new_name}")
-    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
 @task
@@ -91,43 +91,40 @@ def create_masks(
     logger.info(f"Successfully created masks for {path} on: {task_full_name}")
 
 
-ephemeral_executor = DaskExecutor(
+executor = DaskExecutor(
     cluster_class=GCPCluster,
     adapt_kwargs={"maximum": 10},
     cluster_kwargs={
-        "projectid": "oxeo-main",
-        "zone": "europe-west4-a",
-        "network": "dask",
+        "projectid": dask_projectid,
+        "zone": dask_gcp_zone,
+        "network": dask_network,
         "machine_type": "n1-highmem-2",
-        "source_image": "oxeo-flows",
-        "docker_image": "eu.gcr.io/oxeo-main/oxeo-flows:latest",
+        "source_image": dask_image,
+        "docker_image": docker_oxeo_flows,
     },
 )
-long_executor = DaskExecutor(address="tcp://<ip>:<port>")
-local_executor = DaskExecutor()
 storage = GitHub(
-    repo="oxfordeo/oxeo-flows",
-    path="flows/predict.py",
-    access_token_secret="GITHUB",
+    repo=repo_name,
+    path="oxeo/flows/predict.py",
+    access_token_secret=prefect_secret_github_token,
 )
 run_config = VertexRun(
     labels=["vertex"],
-    image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
+    image=docker_oxeo_flows,
     machine_type="n1-highmem-2",
-    network="projects/292453623103/global/networks/dask",
+    network=dask_network_full,
 )
 with Flow(
     "predict",
-    executor=ephemeral_executor,
+    executor=executor,
     storage=storage,
     run_config=run_config,
 ) as flow:
     # parameters
     aoi_id = Parameter(name="aoi_id", required=True)
 
-    credentials = Parameter(name="credentials", default="token.json")
+    credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
-    gcp_region = Parameter(name="gcp_region", default="europe-west4")
     bucket = Parameter(name="bucket", default="oxeo-water")
 
     constellations = Parameter(

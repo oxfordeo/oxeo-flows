@@ -28,4 +28,4 @@ jobs:
           pip install -r requirements.txt
           prefect backend cloud
           prefect auth login --key="$PREFECT_API_KEY"
-          prefect register --project=testing -p flows/
+          prefect register --project=testing -p oxeo/flows/

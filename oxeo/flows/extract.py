@@ -10,7 +10,6 @@ import prefect
 import pystac
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task
-from prefect.client import Client
 from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
@@ -22,16 +21,14 @@ from satextractor.stac import gcp_region_to_item_collection
 from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
 
-
-@task
-def rename_flow_run(
-    aoi_id: int,
-) -> None:
-    logger = prefect.context.get("logger")
-    old_name = prefect.context.get("flow_run_name")
-    new_name = f"run_{aoi_id}"
-    logger.info(f"Rename the Flow Run from {old_name} to {new_name}")
-    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
+from oxeo.flows import (
+    dask_network_full,
+    default_gcp_token,
+    docker_oxeo_flows,
+    prefect_secret_github_token,
+    repo_name,
+)
+from oxeo.flows.util import rename_flow_run
 
 
 @task
@@ -268,14 +265,15 @@ def check_deploy_completion(
 
 executor = DaskExecutor()
 storage = GitHub(
-    repo="oxfordeo/oxeo-flows",
-    path="flows/extract.py",
-    access_token_secret="GITHUB",
+    repo=repo_name,
+    path="oxeo/flows/extract.py",
+    access_token_secret=prefect_secret_github_token,
 )
 run_config = VertexRun(
     labels=["vertex"],
-    image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
+    image=docker_oxeo_flows,
     machine_type="e2-highmem-2",
+    network=dask_network_full,
 )
 with Flow(
     "extract",
@@ -286,7 +284,7 @@ with Flow(
     # parameters
     aoi = Parameter(name="aoi", required=True)
 
-    credentials = Parameter(name="credentials", default="token.json")
+    credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")
