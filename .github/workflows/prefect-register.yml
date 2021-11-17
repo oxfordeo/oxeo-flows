@@ -3,6 +3,8 @@ name: prefect-register
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'oxeo/flows/'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -13,19 +15,24 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.3
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Setup python
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
-      - name: register flows
+
+      - name: Install dependencies
+        run: pip install .
+
+      - name: Register with Prefect
         env:
           PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
         run: |
-          pip install .
           prefect backend cloud
           prefect auth login --key="$PREFECT_API_KEY"
           prefect register --project=water -p oxeo/flows/

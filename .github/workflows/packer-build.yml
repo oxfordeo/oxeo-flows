@@ -17,9 +17,10 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+
       - name: Sleep for 10 minutes for Docker build to finish
         run: sleep 10m
-        shell: bash
+
       - name: Build VM image with Packer
         uses: oxfordeo/packer-action@master
         with:

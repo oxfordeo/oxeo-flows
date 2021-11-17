@@ -158,7 +158,7 @@ Run the Agent image on Vertex:
 ```
 gcloud ai custom-jobs create \
  --region=europe-west4 \
- --display-name=prefect-agent-test2 \
+ --display-name=prefect-agent \
  --service-account=prefect@oxeo-main.iam.gserviceaccount.com \
  --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/oxeo-flows:latest
 ```
