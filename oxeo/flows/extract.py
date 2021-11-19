@@ -246,7 +246,7 @@ def check_deploy_completion(
         done = int(df.iat[0, 0])
         logger.info(f"Cloud Run extraction tasks: {done} of {tot}")
 
-        if done == tot:
+        if done >= tot:
             logger.info(f"All {tot} extraction tasks done!")
             return
         elif done == prev_done:
@@ -256,6 +256,10 @@ def check_deploy_completion(
                 raise Exception("No further progress on tasks")
         else:
             loops_unchanged = 0
+
+        # TODO This isn't working
+        # Just sleeps for 10 seconds every time and never quits
+        # But Cloud Run has resource limits so maybe don't want it to quit?
 
         # Exponential backoff, only when nothing has changed
         sleep = base_sleep * (2 ** (loops_unchanged + 1) - 1)

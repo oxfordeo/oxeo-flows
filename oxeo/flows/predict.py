@@ -188,7 +188,7 @@ with Flow(
 ) as flow:
     # parameters
     aoi_id = Parameter(name="aoi_id", required=True)
-    model_name = Parameter(name="model_name", required=True)
+    model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
