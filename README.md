@@ -89,6 +89,9 @@ On push to GitHub, the following will happen, only running when needed (by speci
 ### Cloud Build Triggers
 - Build the Docker image
 
+### Cloud Run
+Cloud Run is set to [continuously deploy](https://cloud.google.com/run/docs/continuous-deployment-with-cloud-build) the `sat-extractor` image and service from GitHub. Did this by first building using `sat-extractor` CLI, and *then* add the continuous deployment. (Nothing to do with this repo, just a note!)
+
 # Configuration and advanced stuff
 From here on is basically my notes on getting different bits to work together.
 You shouldn't need to do any of this!
