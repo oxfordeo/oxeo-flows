@@ -1,5 +1,5 @@
 from functools import partial
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import geopandas as gpd
 import prefect
@@ -76,3 +76,10 @@ def gdf2geom(
     gdf: gpd.GeoDataFrame,
 ) -> Union[MultiPolygon, Polygon]:
     return gdf.unary_union
+
+
+@task
+def gdf2list(
+    gdf: gpd.GeoDataFrame,
+) -> List[Dict]:
+    return gdf.to_dict(orient="records")
