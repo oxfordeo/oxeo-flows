@@ -1,11 +1,8 @@
-import json
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Tuple, Union
-from uuid import uuid4
+from typing import List, Union
 
-import geopandas as gpd
 import prefect
 import pystac
 from google.cloud import bigquery
@@ -13,6 +10,7 @@ from prefect import Flow, Parameter, task
 from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
+from prefect.tasks.secrets import PrefectSecret
 from satextractor.deployer import deploy_tasks
 from satextractor.models import ExtractionTask, Tile
 from satextractor.preparer.gcp_preparer import gcp_prepare_archive
@@ -28,49 +26,20 @@ from oxeo.flows import (
     prefect_secret_github_token,
     repo_name,
 )
-from oxeo.flows.utils import rename_flow_run
-
-
-@task
-def get_id_and_geom(
-    aoi: str,
-) -> Tuple[str, Union[Polygon, MultiPolygon]]:
-    logger = prefect.context.get("logger")
-    logger.info("Determining how to parse AOI")
-    try:  # first assume that aoi is dict GeoJSON
-        geom = gpd.GeoDataFrame.from_features(aoi).unary_union
-        aoi_id = str(uuid4())[:8]
-        logger.info("Loaded AOI as dict GeoJSON and created aoi_id")
-    except TypeError:
-        try:  # then try with aoi as a str GeoJSON
-            geom = gpd.GeoDataFrame.from_features(json.load(aoi)).unary_union
-            aoi_id = str(uuid4())[:8]
-            logger.info("Loaded AOI as str GeoJSON and created aoi_id")
-        except (json.decoder.JSONDecodeError, AttributeError):
-            try:  # then try load it from a file
-                geom = gpd.read_file(aoi).unary_union
-                aoi_id = str(uuid4())[:8]
-                logger.info("Loaded AOI as file and created aoi_id")
-            except ValueError:  # fall back to pulling it from the DB
-                aoi_id = aoi
-                geom = get_db_geom(aoi_id)
-                logger.info("Used AOI as id to load from DB")
-    return aoi_id, geom
-
-
-@task
-def get_db_geom(
-    aoi_id: str,
-) -> Union[Polygon, MultiPolygon]:
-    raise NotImplementedError("DB geometry functionality not created yet!")
+from oxeo.flows.utils import (
+    data2gdf,
+    fetch_water_list,
+    gdf2geom,
+    generate_run_id,
+    rename_flow_run,
+)
 
 
 @task
 def get_storage_path(
     storage_root: str,
-    aoi_id: str,
 ) -> str:
-    return f"gs://{storage_root}/{aoi_id}"
+    return f"gs://{storage_root}/prod"
 
 
 @task
@@ -236,7 +205,7 @@ def check_deploy_completion(
     prev_done = -1
     loops_unchanged = 0
     max_loops_no_progress = 5
-    base_sleep = 10
+    base_sleep = 60
 
     while True:
         client = bigquery.Client()
@@ -285,8 +254,13 @@ with Flow(
     storage=storage,
     run_config=run_config,
 ) as flow:
+    # secrets
+    postgis_password = PrefectSecret("POSTGIS_PASSWORD")
+
     # parameters
-    aoi = Parameter(name="aoi", required=True)
+    water_list: List[int] = Parameter(
+        name="water_list", required=True, default=[25906112, 25906127]
+    )
 
     credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
@@ -305,14 +279,17 @@ with Flow(
     split_m = Parameter(name="split_m", default=100000)
     chunk_size = Parameter(name="chunk_size", default=1000)
 
-    # figure out geom and ID
-    aoi_id, aoi_geom = get_id_and_geom(aoi)
-
     # rename the Flow run to reflect the parameters
-    rename_flow_run(aoi_id)
+    run_id = generate_run_id(water_list)
+    rename_flow_run(run_id)
+
+    # get geom
+    db_data = fetch_water_list(water_list=water_list, password=postgis_password)
+    gdf = data2gdf(db_data)
+    aoi_geom = gdf2geom(gdf)
 
     # run the flow
-    storage_path = get_storage_path(storage_root, aoi_id)
+    storage_path = get_storage_path(storage_root)
     built = build(project, gcp_region, storage_root, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
