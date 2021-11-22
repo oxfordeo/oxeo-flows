@@ -11,6 +11,18 @@ from shapely.geometry import MultiPolygon, Polygon
 
 
 @task
+def parse_water_list(water_list):
+    # split string of the form: 1234,8765
+    if isinstance(water_list, str):
+        water_list = water_list.split(",")
+    if isinstance(water_list, int):
+        water_list = [water_list]
+    # ensure water_list is a tuple of ints
+    water_list = tuple(int(w) for w in water_list)
+    return water_list
+
+
+@task
 def generate_run_id(
     water_list: List[int],
 ) -> str:
@@ -47,12 +59,6 @@ def fetch_water_list(
         fetch="all",
         query="SELECT area_id, name, geom FROM water WHERE area_id IN %s",
     )
-
-    # split string of the form: 1234,8765
-    if isinstance(water_list, str):
-        water_list = water_list.split(",")
-    # ensure water_list is a tuple of ints
-    water_list = tuple(int(w) for w in water_list)
 
     data = fetch.run(
         password=password,

@@ -35,6 +35,7 @@ from oxeo.flows.utils import (
     gdf2geom,
     gdf2list,
     generate_run_id,
+    parse_water_list,
     rename_flow_run,
 )
 from oxeo.water.metrics import metrics
@@ -215,22 +216,17 @@ with Flow(
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
     # parameters
-    water_list: List[int] = Parameter(
-        name="water_list", required=True, default=[25906112, 25906127]
-    )
+    water_list: List[int] = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     bucket = Parameter(name="bucket", default="oxeo-water")
 
-    constellations = Parameter(
-        name="constellations",
-        default=["sentinel-2"],
-        # default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
-    )
+    constellations = Parameter(name="constellations", default=["sentinel-2"])
 
     # rename the Flow run to reflect the parameters
+    water_list = parse_water_list(water_list)
     run_id = generate_run_id(water_list)
     rename_flow_run(run_id)
 

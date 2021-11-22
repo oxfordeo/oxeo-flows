@@ -31,6 +31,7 @@ from oxeo.flows.utils import (
     fetch_water_list,
     gdf2geom,
     generate_run_id,
+    parse_water_list,
     rename_flow_run,
 )
 
@@ -269,16 +270,14 @@ with Flow(
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
-    constellations = Parameter(
-        name="constellations",
-        default=["sentinel-2", "landsat-5", "landsat-7", "landsat-8"],
-    )
+    constellations = Parameter(name="constellations", default=["sentinel-2"])
 
     bbox_size = Parameter(name="bbox_size", default=10000)
     split_m = Parameter(name="split_m", default=100000)
     chunk_size = Parameter(name="chunk_size", default=1000)
 
     # rename the Flow run to reflect the parameters
+    water_list = parse_water_list(water_list)
     run_id = generate_run_id(water_list)
     rename_flow_run(run_id)
 
