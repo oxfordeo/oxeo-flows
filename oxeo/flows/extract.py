@@ -116,8 +116,7 @@ def tiler(
     logger.info("Creating tiles")
     tiles = split_region_in_utm_tiles(
         region=region,
-        # crs=,
-        bbox_size=(bbox_size, bbox_size),
+        bbox_size=bbox_size,
     )
     return tiles
 

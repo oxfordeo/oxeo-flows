@@ -14,7 +14,7 @@ from shapely.geometry import MultiPolygon, Polygon
 def generate_run_id(
     water_list: List[int],
 ) -> str:
-    water = "_".join(water_list)
+    water = "_".join(str(w) for w in water_list)
     return f"lakes_{water}"
 
 
