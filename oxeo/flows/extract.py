@@ -50,7 +50,7 @@ def build(
     storage_root: str,
     credentials: Path,
     user_id: str,
-) -> None:
+) -> bool:
     logger = prefect.context.get("logger")
 
     logger.info("Checking that Google Cloud Run and PubSub resources exist")

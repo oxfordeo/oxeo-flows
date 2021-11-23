@@ -18,6 +18,7 @@ from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.models import Tile
 from satextractor.tiler import split_region_in_utm_tiles
+from shapely.geometry import MultiPolygon, Polygon
 
 from oxeo.flows import (
     dask_gcp_zone,
@@ -48,8 +49,14 @@ def make_paths(bucket, tiles, constellations):
     ]
 
 
-def get_tiles(geom: Union[gpd.GeoSeries, gpd.GeoDataFrame]) -> List[Tile]:
-    return split_region_in_utm_tiles(region=geom.unary_union, bbox_size=10000)
+def get_tiles(
+    geom: Union[Polygon, MultiPolygon, gpd.GeoSeries, gpd.GeoDataFrame]
+) -> List[Tile]:
+    try:
+        geom = geom.unary_union
+    except AttributeError:
+        pass
+    return split_region_in_utm_tiles(region=geom, bbox_size=10000)
 
 
 @task
