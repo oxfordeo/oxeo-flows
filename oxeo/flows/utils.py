@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Dict, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import geopandas as gpd
 import prefect
@@ -7,7 +7,6 @@ from prefect import task
 from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
 from shapely import wkb
-from shapely.geometry import MultiPolygon, Polygon
 
 
 @task
@@ -78,14 +77,5 @@ def data2gdf(
 
 
 @task
-def gdf2geom(
-    gdf: gpd.GeoDataFrame,
-) -> Union[MultiPolygon, Polygon]:
+def gdf2geom(gdf):
     return gdf.unary_union
-
-
-@task
-def gdf2list(
-    gdf: gpd.GeoDataFrame,
-) -> List[Dict]:
-    return gdf.to_dict(orient="records")

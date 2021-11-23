@@ -4,6 +4,7 @@ from typing import Dict, List, Union
 from uuid import uuid4
 
 import gcsfs
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import prefect
@@ -15,8 +16,8 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import VertexRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from satextractor.models import Tile
 from satextractor.tiler import split_region_in_utm_tiles
-from shapely.geometry import MultiPolygon, Polygon
 
 from oxeo.flows import (
     dask_gcp_zone,
@@ -32,8 +33,6 @@ from oxeo.flows import (
 from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
-    gdf2geom,
-    gdf2list,
     generate_run_id,
     parse_water_list,
     rename_flow_run,
@@ -43,33 +42,42 @@ from oxeo.water.models import model_factory
 from oxeo.water.models.utils import merge_masks
 
 
-@task
-def get_tiles(
-    geom: Union[Dict, Polygon, MultiPolygon],
-) -> List[str]:
-    if isinstance(geom, dict):
-        geom = geom["geometry"]
-    tiles = split_region_in_utm_tiles(region=geom, bbox_size=10000)
-    tiles = [t.id for t in tiles]
-    return tiles
+def make_paths(bucket, tiles, constellations):
+    return [
+        f"{bucket}/prod/{tile.id}/{cons}" for tile in tiles for cons in constellations
+    ]
+
+
+def get_tiles(geom: Union[gpd.GeoSeries, gpd.GeoDataFrame]) -> List[Tile]:
+    return split_region_in_utm_tiles(region=geom.unary_union, bbox_size=10000)
 
 
 @task
-def get_paths(
-    tiles: List[str],
+def get_all_paths(
+    gdf: gpd.GeoDataFrame,
     bucket: str,
     constellations: List[str],
-) -> List[Path]:
+) -> List[str]:
     logger = prefect.context.get("logger")
-    logger.info("Getting all tiles for and constellations")
+    logger.info("Getting all tiles/paths for the total supplied geometry")
+    all_tiles = get_tiles(gdf)
+    all_paths = make_paths(bucket, all_tiles, constellations)
+    return all_paths
 
-    paths = []
-    for tile in tiles:
-        for cons in constellations:
-            paths.append(f"{bucket}/prod/{tile}/{cons}")
-    logger.info(f"Got all paths: {paths}")
 
-    return paths
+@task
+def get_water_paths(
+    gdf: gpd.GeoDataFrame,
+    bucket: str,
+    constellations: List[str],
+) -> List[Dict]:
+    logger = prefect.context.get("logger")
+    logger.info("Getting separate paths for each waterbody")
+    water_list = gdf.to_dict(orient="records")
+    for water in water_list:
+        tiles = get_tiles(water["geometry"])
+        water["paths"] = make_paths(bucket, tiles, constellations)
+    return water_list
 
 
 @task
@@ -119,7 +127,6 @@ def create_masks(
 @task
 def merge_to_bq(
     water_dict: Dict,
-    paths: List[str],
     model_name: str,
     pfaf2: int = 12,
 ) -> None:
@@ -129,6 +136,7 @@ def merge_to_bq(
     # but we should merge all constellations together?
     # Removed last bit of paths as parse_xy in model/utils expects
     # a different path structure (without contellation)
+    paths = water_dict["paths"]
     paths = [p.split("/sentinel")[0] for p in paths]
 
     logger.info(f"Merge all masks in {paths}")
@@ -233,16 +241,14 @@ with Flow(
     # get geom
     db_data = fetch_water_list(water_list=water_list, password=postgis_password)
     gdf = data2gdf(db_data)
-    aoi_geom = gdf2geom(gdf)
 
     # start processing
-    tiles: List[str] = get_tiles(aoi_geom)
-    paths = get_paths(tiles, bucket, constellations)
+    all_paths = get_all_paths(gdf, bucket, constellations)
 
     # create_masks() is mapped in parallel across all the paths
     # the returned masks is an empty list purely for the DAG
     masks = create_masks.map(
-        path=paths,
+        path=all_paths,
         model_name=unmapped(model_name),
         project=unmapped(project),
         credentials=unmapped(credentials),
@@ -250,19 +256,9 @@ with Flow(
 
     # now instead of mapping across all paths, we map across
     # individual lakes
-    water_list: List[Dict] = gdf2list(gdf)
-    tiles_sep: List[List[str]] = get_tiles.map(water_list)
-    paths_sep: List[List[str]] = get_paths.map(
-        tiles=tiles_sep,
-        bucket=unmapped(bucket),
-        constellations=unmapped(constellations),
-    )
-    # this relies on water_list and paths_sep being the same length
-    # and corresponding properly! Should probably do something a bit
-    # more robust.
+    water_paths: List[Dict] = get_water_paths(gdf, bucket, constellations)
     merge_to_bq.map(
-        water_dict=water_list,
-        paths=paths_sep,
+        water_dict=water_paths,
         model_name=unmapped(model_name),
-        upstream_tasks=[masks],
+        upstream_tasks=[unmapped(masks)],
     )
