@@ -10,7 +10,7 @@ Repository for managing pipelines etc, using Prefect for orchestration.
 
 ## Getting started
 **TODO**: Currently any internal dependencies (such as the `oxeo/flows/utils.py` file) can *not* be pulled from GitHub, and therefore must be installed into the Docker image.
-Currently these files are not watched by Cloud Build/GitHub Actions, which they should. In general, these files should be changes as little as possible!
+Have set the GitHub Action to watch `utils.py` only. Not sure what the best method is...
 
 ### Project structure
 Currently quite basic. At some point we'll probably want to separate actual business logic, from task definitions, from Flow definitions.

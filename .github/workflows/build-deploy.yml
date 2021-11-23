@@ -1,4 +1,4 @@
-name: vertex-agent
+name: build-deploy
 
 on:
   push:
@@ -6,19 +6,54 @@ on:
     paths:
       - 'setup.cfg'
       - 'Dockerfile'
+      - 'packer/packer.json'
+      - 'cloudbuild.yaml'
+      - 'oxeo/flows/utils.py'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build:
+  cloudbuild:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
 
-      - name: Sleep for 10 minutes for Docker build to finish
-        run: sleep 10m
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          project_id: oxeo-main
+          service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
+          export_default_credentials: true
+
+      - name: Submit to Cloud Build
+        run: |
+          gcloud builds submit . --config=cloudbuild.yaml
+
+  packer:
+    needs: cloudbuild
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Build VM image with Packer
+        uses: oxfordeo/packer-action@master
+        with:
+          only: googlecompute
+          secret: ${{ secrets.GCP_PREFECT_SERV_ACC }}
+          template: packer/packer.json
+          options: "-force"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: '/tmp/packer-secret'
+
+  vertexagent:
+    needs: cloudbuild
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@master
