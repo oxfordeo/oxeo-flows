@@ -1,8 +1,6 @@
 # oxeo-flows
 [![prefect-register](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml)
-[![cloud-build](https://img.shields.io/badge/cloud--build-click--here-orange)](https://console.cloud.google.com/cloud-build/builds?project=oxeo-main)
-[![vertex-agent](https://github.com/oxfordeo/oxeo-flows/actions/workflows/vertex-agent.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/vertex-agent.yml)
-[![packer-build](https://github.com/oxfordeo/oxeo-flows/actions/workflows/packer-build.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/packer-build.yml)
+[![build-deploy](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml)
 
 Repository for managing pipelines etc, using Prefect for orchestration.
 
