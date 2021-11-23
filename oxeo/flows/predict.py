@@ -205,7 +205,7 @@ executor = DaskExecutor(
         "projectid": dask_projectid,
         "zone": dask_gcp_zone,
         "network": dask_network,
-        "machine_type": "n1-highmem-2",
+        "machine_type": "n1-highmem-32",
         "source_image": dask_image,
         "docker_image": docker_oxeo_flows,
     },
