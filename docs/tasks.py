@@ -1,17 +1,23 @@
-from os import environ
 import json
+from os import environ
 
 from google.cloud import tasks_v2
 from typer import run
 
+project = environ.get("PROJECT_ID")
+queue = environ.get("QUEUE_NAME")
+location = environ.get("LOCATION_ID")
+gcr_url = environ.get("GCR_URL")
+serv_ac = environ.get("SERV_AC")
+
 
 def create_task(
     payload: str,
-    project: str = environ.get("PROJECT_ID"),
-    queue: str = environ.get("QUEUE_NAME"),
-    location: str = environ.get("LOCATION_ID"),
-    gcr_url: str = environ.get("GCR_URL"),
-    serv_ac: str = environ.get("SERV_AC"),
+    project: str = project,
+    queue: str = queue,
+    location: str = location,
+    gcr_url: str = gcr_url,
+    serv_ac: str = serv_ac,
 ):
     body = json.dumps(json.loads(payload)).encode()
 
@@ -33,7 +39,7 @@ def create_task(
     }
     response = client.create_task(parent=parent, task=task)
 
-    print("Created task {}".format(response.name))
+    print(f"Created task {response.name}")
     return response
 
 

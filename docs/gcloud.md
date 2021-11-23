@@ -192,9 +192,16 @@ Python:
 python logs.py
 ```
 
-## Monitoring task completion
-Options:
-1. Write a file to Storage, or something to BigQuery etc and monitor with a Sensor/similar
-2. Publish a message back to Pub/Sub on completion
-3. Watch Cloud Tasks task status, and assume success once Task is gone
-4. Use Cloud Logging to track task status (created, dispatched, responded)
+## Dataproc
+Tried to create a custom image for Dataproc using [these](https://cloud.google.com/dataproc/docs/guides/dataproc-images) instructions and a bash script based on the Dockerfile, but couldn't get it to play nice with SSH pip install.
+
+[Script is here](dataproc-dask-install.sh), then run:
+```
+python generate_custom_image.py \
+  --image-name=dataproc-dask \
+  --dataproc-version=2.0.24-ubuntu18 \
+  --customization-script=dask.sh \
+  --zone=europe-west4-a \
+  --gcs-bucket=gs://oxeo-dataproc-custom-image \
+  --disk-size=30
+```
