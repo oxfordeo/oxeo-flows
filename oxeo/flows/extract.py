@@ -258,7 +258,7 @@ with Flow(
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
     # parameters
-    water_list: List[int] = Parameter(
+    water_list = Parameter(
         name="water_list", required=True, default=[25906112, 25906127]
     )
 

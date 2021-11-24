@@ -231,7 +231,7 @@ with Flow(
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
     # parameters
-    water_list: List[int] = Parameter(name="water_list", default=[25906112, 25906127])
+    water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=default_gcp_token)
@@ -263,7 +263,7 @@ with Flow(
 
     # now instead of mapping across all paths, we map across
     # individual lakes
-    water_paths: List[Dict] = get_water_paths(gdf, bucket, constellations)
+    water_paths = get_water_paths(gdf, bucket, constellations)
     merge_to_bq.map(
         water_dict=water_paths,
         model_name=unmapped(model_name),

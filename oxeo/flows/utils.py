@@ -54,7 +54,7 @@ def fetch_water_list(
         db_name=DB_NAME,
         user=DB_USER,
         host=DB_HOST,
-        port="5432",
+        port=5432,
         fetch="all",
         query="SELECT area_id, name, geom FROM water WHERE area_id IN %s",
     )
