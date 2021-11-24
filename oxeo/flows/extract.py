@@ -8,7 +8,7 @@ import pystac
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task
 from prefect.executors import DaskExecutor
-from prefect.run_configs import VertexRun
+from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.deployer import deploy_tasks
@@ -20,7 +20,6 @@ from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
 
 from oxeo.flows import (
-    dask_network_full,
     default_gcp_token,
     docker_oxeo_flows,
     prefect_secret_github_token,
@@ -242,11 +241,8 @@ storage = GitHub(
     path="oxeo/flows/extract.py",
     access_token_secret=prefect_secret_github_token,
 )
-run_config = VertexRun(
-    labels=["vertex"],
+run_config = KubernetesRun(
     image=docker_oxeo_flows,
-    machine_type="e2-highmem-2",
-    network=dask_network_full,
 )
 with Flow(
     "extract",

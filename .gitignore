@@ -2,6 +2,7 @@
 secrets/
 dask-worker-space/
 *.geojson
+token.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
