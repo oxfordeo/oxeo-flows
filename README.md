@@ -58,8 +58,8 @@ prefect auth login --key <your-api-key>
 4. Add any new dependencies to requirements.txt
 
 ### Run a flow locally
-This works even if the Flow is set up with `VertexRun` etc
-(i.e. the `storage` and `run_config` arguments you passed to your `Flow` will be ignored).
+This works even if the Flow is set up with `KubernetesRun` etc
+(i.e. the `storage` and `run_config` arguments you passed to your `Flow` will be ignored, but the `executor` won't!).
 
 Probably best to try with the plain `DaskExecutor` to start off with.
 ```
@@ -90,7 +90,6 @@ On push to GitHub, the following will happen, only running when needed (by speci
 - Register/update all Flows with Prefect Cloud
 - Build the Docker image
 - Build a Packer image based on the new Docker image
-- Redeploy the Vertex Agent with the new image
 
 ### Cloud Run
 Cloud Run is set to [continuously deploy](https://cloud.google.com/run/docs/continuous-deployment-with-cloud-build) the `sat-extractor` image and service from the [oxfordeo fork](https://github.com/oxfordeo/sat-extractor). Did this by first building once using `sat-extractor` CLI (to create the PubSub resources), and *then* add the continuous deployment. (Nothing to do with this repo, just a note!)

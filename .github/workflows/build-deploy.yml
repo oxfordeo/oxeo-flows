@@ -47,37 +47,3 @@ jobs:
           options: "-force"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: '/tmp/packer-secret'
-
-  #vertexagent:
-    #needs: cloudbuild
-    #runs-on: ubuntu-latest
-    #steps:
-      #- name: Checkout repo
-        #uses: actions/checkout@v2
-
-      #- name: Set up Cloud SDK
-        #uses: google-github-actions/setup-gcloud@master
-        #with:
-          #project_id: oxeo-main
-          #service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
-          #export_default_credentials: true
-
-      #- name: Stop current jobs and create new
-        #run: |
-          #vertex_job_ids=$(gcloud ai custom-jobs list \
-            #--region=europe-west4 \
-            #--filter="displayName:prefect-agent \
-                #AND \
-                #state=(JOB_STATE_PENDING,JOB_STATE_RUNNING)" \
-            #--format='value(name)')
-          #echo JOBS $vertex_job_ids
-          #for job in $vertex_job_ids; do
-            #echo STOPPING $job;
-            #gcloud ai custom-jobs cancel $job;
-          #done
-          #echo CREATING NEW
-          #gcloud ai custom-jobs create \
-           #--region=europe-west4 \
-           #--display-name=prefect-agent \
-           #--service-account=prefect@oxeo-main.iam.gserviceaccount.com \
-           #--worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/oxeo-flows:latest

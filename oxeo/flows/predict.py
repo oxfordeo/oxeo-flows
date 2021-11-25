@@ -13,7 +13,7 @@ from dask_cloudprovider.gcp import GCPCluster
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
-from prefect.run_configs import VertexRun
+from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.models import Tile
@@ -24,7 +24,6 @@ from oxeo.flows import (
     dask_gcp_zone,
     dask_image,
     dask_network,
-    dask_network_full,
     dask_projectid,
     default_gcp_token,
     docker_oxeo_flows,
@@ -198,16 +197,25 @@ def merge_to_bq(
         )
 
 
+def dynamic_cluster(**kwargs):
+    n_workers = prefect.context.parameters["n_workers"]
+    return GCPCluster(n_workers=n_workers, **kwargs)
+
+
 executor = DaskExecutor(
-    cluster_class=GCPCluster,
-    adapt_kwargs={"maximum": 10},
+    # cluster_class=GCPCluster,
+    cluster_class=dynamic_cluster,
+    debug=True,
+    # adapt_kwargs={"minimum": 2, "maximum": 30},
     cluster_kwargs={
         "projectid": dask_projectid,
         "zone": dask_gcp_zone,
         "network": dask_network,
-        "machine_type": "n1-highmem-32",
+        "machine_type": "n1-highmem-4",
         "source_image": dask_image,
         "docker_image": docker_oxeo_flows,
+        "bootstrap": False,
+        # "n_workers": 2,
     },
 )
 storage = GitHub(
@@ -215,11 +223,8 @@ storage = GitHub(
     path="oxeo/flows/predict.py",
     access_token_secret=prefect_secret_github_token,
 )
-run_config = VertexRun(
-    labels=["vertex"],
+run_config = KubernetesRun(
     image=docker_oxeo_flows,
-    machine_type="n1-highmem-2",
-    network=dask_network_full,
 )
 with Flow(
     "predict",
@@ -231,6 +236,7 @@ with Flow(
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
     # parameters
+    flow.add_task(Parameter("n_workers", default=2))
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
 

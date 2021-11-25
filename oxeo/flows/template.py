@@ -4,15 +4,10 @@ from typing import List
 import prefect
 from prefect import Flow, Parameter, task
 from prefect.executors import DaskExecutor
-from prefect.run_configs import VertexRun
+from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 
-from oxeo.flows import (
-    dask_network_full,
-    docker_oxeo_flows,
-    prefect_secret_github_token,
-    repo_name,
-)
+from oxeo.flows import docker_oxeo_flows, prefect_secret_github_token, repo_name
 from oxeo.flows.utils import rename_flow_run
 
 
@@ -78,16 +73,13 @@ storage = GitHub(
 )
 
 # This specifies where the Flow is run.
-# Vertex for us. If you use a remote Dask cluster,
-# Only the Flow *glue* will run on Vertex, and all
+# Kubernetes for us. If you use a remote Dask cluster,
+# Only the Flow *glue* will run on Kubernetes, and all
 # the actual tasks will run on the cluster.
 # If you don't want to use a cluster, you can instead
 # just specify a beefier machine here!
-run_config = VertexRun(
-    labels=["vertex"],
+run_config = KubernetesRun(
     image=docker_oxeo_flows,
-    machine_type="n1-highmem-2",
-    network=dask_network_full,
 )
 with Flow(
     # don't forget to change this!
