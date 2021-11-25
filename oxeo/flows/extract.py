@@ -1,12 +1,14 @@
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Union
+from uuid import uuid4
 
 import prefect
 import pystac
 from google.cloud import bigquery
-from prefect import Flow, Parameter, task
+from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -26,10 +28,12 @@ from oxeo.flows import (
     repo_name,
 )
 from oxeo.flows.utils import (
+    WaterDict,
     data2gdf,
     fetch_water_list,
     gdf2geom,
     generate_run_id,
+    get_water_dicts,
     parse_water_list,
     rename_flow_run,
 )
@@ -197,7 +201,7 @@ def check_deploy_completion(
     user_id: str,
     job_id: str,
     extraction_tasks: List[ExtractionTask],
-) -> None:
+) -> bool:
     logger = prefect.context.get("logger")
     tot = len(extraction_tasks)
 
@@ -216,7 +220,7 @@ def check_deploy_completion(
 
         if done >= tot:
             logger.info(f"All {tot} extraction tasks done!")
-            return
+            return True
         elif done == prev_done:
             loops_unchanged += 1
             if loops_unchanged >= max_loops_no_progress:
@@ -233,6 +237,53 @@ def check_deploy_completion(
         sleep = base_sleep * (2 ** (loops_unchanged + 1) - 1)
         logger.info(f"Sleep for {sleep} seconds")
         time.sleep(sleep)
+
+
+@task
+def log_to_bq(
+    water_dict: WaterDict,
+    start_date: str,
+    end_date: str,
+    constellations: List[str],
+    bbox_size: int,
+    split_m: int,
+    chunk_size: int,
+) -> None:
+    logger = prefect.context.get("logger")
+
+    area_id = water_dict.area_id
+    run_id = f"{area_id}-{str(uuid4())[:8]}"
+    timestamp = datetime.utcnow().isoformat(timespec="seconds")
+    minx, miny, maxx, maxy = water_dict.geometry.bounds
+
+    logger.info(f"Log lake {area_id} extraction to BQ")
+
+    tiles = [p.tile.id for p in water_dict.paths]
+    dict_water = dict(
+        run_id=run_id,
+        area_id=area_id,
+        timestamp=timestamp,
+        start_date=start_date,
+        end_date=end_date,
+        constellations=constellations,
+        bbox_size=bbox_size,
+        split_m=split_m,
+        chunk_size=chunk_size,
+        tiles=tiles,
+        bbox_n=maxy,
+        bbox_s=miny,
+        bbox_w=minx,
+        bbox_e=maxx,
+    )
+
+    logger.info("Insert results into BigQuery")
+    client = bigquery.Client()
+
+    errors = client.insert_rows_json("oxeo-main.water.water_extractions", [dict_water])
+    if errors != []:
+        raise ValueError(
+            f"there where {len(errors)} error when inserting. " + str(errors),
+        )
 
 
 executor = DaskExecutor()
@@ -262,7 +313,7 @@ with Flow(
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")
-    storage_root = Parameter(name="storage_root", default="oxeo-water")
+    bucket = Parameter(name="storage_root", default="oxeo-water")
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
@@ -283,8 +334,8 @@ with Flow(
     aoi_geom = gdf2geom(gdf)
 
     # run the flow
-    storage_path = get_storage_path(storage_root)
-    built = build(project, gcp_region, storage_root, credentials, user_id)
+    storage_path = get_storage_path(bucket)
+    built = build(project, gcp_region, bucket, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
     extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
@@ -307,4 +358,16 @@ with Flow(
         upstream_tasks=[built, prepped],
     )
 
-    check_deploy_completion(project, user_id, job_id, extraction_tasks)
+    complete = check_deploy_completion(project, user_id, job_id, extraction_tasks)
+
+    water_dicts = get_water_dicts(gdf, bucket, constellations)
+    log_to_bq.map(
+        water_dict=water_dicts,
+        start_date=unmapped(start_date),
+        end_date=unmapped(end_date),
+        constellations=unmapped(constellations),
+        bbox_size=unmapped(bbox_size),
+        split_m=unmapped(split_m),
+        chunk_size=unmapped(chunk_size),
+        upstream_tasks=[unmapped(complete)],
+    )

@@ -3,10 +3,14 @@ from typing import List, Tuple, Union
 
 import geopandas as gpd
 import prefect
+from attr import frozen
 from prefect import task
 from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
+from satextractor.models import Tile
+from satextractor.tiler import split_region_in_utm_tiles
 from shapely import wkb
+from shapely.geometry import MultiPolygon, Polygon
 
 
 @task
@@ -79,3 +83,67 @@ def data2gdf(
 @task
 def gdf2geom(gdf):
     return gdf.unary_union
+
+
+@frozen
+class TilePath:
+    tile: Tile
+    path: str
+
+
+@frozen
+class WaterDict:
+    area_id: int
+    name: str
+    geometry: Union[Polygon, MultiPolygon]
+    paths: List[TilePath]
+
+
+def make_paths(bucket, tiles, constellations):
+    return [
+        TilePath(tile=tile, path=f"{bucket}/prod/{tile.id}/{cons}")
+        for tile in tiles
+        for cons in constellations
+    ]
+
+
+def get_tiles(
+    geom: Union[Polygon, MultiPolygon, gpd.GeoSeries, gpd.GeoDataFrame]
+) -> List[Tile]:
+    try:
+        geom = geom.unary_union
+    except AttributeError:
+        pass
+    return split_region_in_utm_tiles(region=geom, bbox_size=10000)
+
+
+@task
+def get_all_paths(
+    gdf: gpd.GeoDataFrame,
+    bucket: str,
+    constellations: List[str],
+) -> List[TilePath]:
+    logger = prefect.context.get("logger")
+    all_tiles = get_tiles(gdf)
+    all_tilepaths = make_paths(bucket, all_tiles, constellations)
+    logger.info(
+        f"All tiles for the supplied geometry: {[t.path for t in all_tilepaths]}"
+    )
+    return all_tilepaths
+
+
+@task
+def get_water_dicts(
+    gdf: gpd.GeoDataFrame,
+    bucket: str,
+    constellations: List[str],
+) -> List[WaterDict]:
+    logger = prefect.context.get("logger")
+    logger.info("Getting separate tiles and paths for each waterbody")
+    water_dicts = []
+    for water in gdf.to_dict(orient="records"):
+        tiles = get_tiles(water["geometry"])
+        water_dicts.append(
+            WaterDict(**water, paths=make_paths(bucket, tiles, constellations))
+        )
+    return water_dicts

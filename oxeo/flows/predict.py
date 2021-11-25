@@ -1,10 +1,7 @@
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Union
 from uuid import uuid4
 
 import gcsfs
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 import prefect
@@ -16,9 +13,6 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from satextractor.models import Tile
-from satextractor.tiler import split_region_in_utm_tiles
-from shapely.geometry import MultiPolygon, Polygon
 
 from oxeo.flows import (
     dask_gcp_zone,
@@ -31,9 +25,13 @@ from oxeo.flows import (
     repo_name,
 )
 from oxeo.flows.utils import (
+    TilePath,
+    WaterDict,
     data2gdf,
     fetch_water_list,
     generate_run_id,
+    get_all_paths,
+    get_water_dicts,
     parse_water_list,
     rename_flow_run,
 )
@@ -42,65 +40,21 @@ from oxeo.water.models import model_factory
 from oxeo.water.models.utils import merge_masks
 
 
-def make_paths(bucket, tiles, constellations):
-    return [
-        f"{bucket}/prod/{tile.id}/{cons}" for tile in tiles for cons in constellations
-    ]
-
-
-def get_tiles(
-    geom: Union[Polygon, MultiPolygon, gpd.GeoSeries, gpd.GeoDataFrame]
-) -> List[Tile]:
-    try:
-        geom = geom.unary_union
-    except AttributeError:
-        pass
-    return split_region_in_utm_tiles(region=geom, bbox_size=10000)
-
-
-@task
-def get_all_paths(
-    gdf: gpd.GeoDataFrame,
-    bucket: str,
-    constellations: List[str],
-) -> List[str]:
-    logger = prefect.context.get("logger")
-    logger.info("Getting all tiles/paths for the total supplied geometry")
-    all_tiles = get_tiles(gdf)
-    all_paths = make_paths(bucket, all_tiles, constellations)
-    return all_paths
-
-
-@task
-def get_water_paths(
-    gdf: gpd.GeoDataFrame,
-    bucket: str,
-    constellations: List[str],
-) -> List[Dict]:
-    logger = prefect.context.get("logger")
-    logger.info("Getting separate paths for each waterbody")
-    water_list = gdf.to_dict(orient="records")
-    for water in water_list:
-        tiles = get_tiles(water["geometry"])
-        water["paths"] = make_paths(bucket, tiles, constellations)
-    return water_list
-
-
 @task
 def create_masks(
-    path: Path,
+    path: TilePath,
     model_name: str,
     project: str,
     credentials: str,
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
-    logger.info(f"Creating mask for {path} on: {task_full_name}")
+    logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     predictor = model_factory(model_name).predictor()
 
-    mapper = fs.get_mapper(f"{path}/data")
+    mapper = fs.get_mapper(f"{path.path}/data")
     arr = zarr.open(mapper, "r")
 
     masks = predictor.predict(
@@ -117,7 +71,7 @@ def create_masks(
     )
     masks = np.array(masks)
 
-    mask_mapper = fs.get_mapper(f"{path}/{model_name}")
+    mask_mapper = fs.get_mapper(f"{path.path}/{model_name}")
     mask_arr = zarr.open_array(
         mask_mapper,
         "w",
@@ -126,13 +80,13 @@ def create_masks(
         dtype=np.uint8,
     )
     mask_arr[:] = masks
-    logger.info(f"Successfully created masks for {path} on: {task_full_name}")
+    logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
     return
 
 
 @task
 def merge_to_bq(
-    water_dict: Dict,
+    water_dict: WaterDict,
     model_name: str,
     pfaf2: int = 12,
 ) -> None:
@@ -142,8 +96,8 @@ def merge_to_bq(
     # but we should merge all constellations together?
     # Removed last bit of paths as parse_xy in model/utils expects
     # a different path structure (without contellation)
-    paths = water_dict["paths"]
-    paths = [p.split("/sentinel")[0] for p in paths]
+    paths = [p.path.split("/sentinel")[0] for p in water_dict.paths]
+    tiles = [p.tile.id for p in water_dict.paths]
 
     logger.info(f"Merge all masks in {paths}")
     full_mask, dates = merge_masks(
@@ -153,7 +107,7 @@ def merge_to_bq(
     )
     areas = metrics.segmentation_area(full_mask)
 
-    area_id = water_dict["area_id"]
+    area_id = water_dict.area_id
     run_id = f"{area_id}-{model_name}-{str(uuid4())[:8]}"
 
     logger.info("Convert results to DataFrame and dict ")
@@ -165,9 +119,8 @@ def merge_to_bq(
     )
     df_ts.date = df_ts.date.apply(lambda x: x.date())  # remove time
 
-    minx, miny, maxx, maxy = water_dict["geometry"].bounds
+    minx, miny, maxx, maxy = water_dict.geometry.bounds
 
-    tiles = [p.split("/")[-1] for p in paths]
     dict_water = dict(
         run_id=run_id,
         area_id=area_id,
@@ -269,9 +222,9 @@ with Flow(
 
     # now instead of mapping across all paths, we map across
     # individual lakes
-    water_paths = get_water_paths(gdf, bucket, constellations)
+    water_dicts = get_water_dicts(gdf, bucket, constellations)
     merge_to_bq.map(
-        water_dict=water_paths,
+        water_dict=water_dicts,
         model_name=unmapped(model_name),
         upstream_tasks=[unmapped(masks)],
     )
