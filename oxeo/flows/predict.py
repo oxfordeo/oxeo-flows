@@ -152,11 +152,11 @@ def merge_to_bq(
 
 def dynamic_cluster(**kwargs):
     n_workers = prefect.context.parameters["n_workers"]
-    return GCPCluster(n_workers=n_workers, **kwargs)
+    machine_type = prefect.context.parameters["machine_type"]
+    return GCPCluster(n_workers=n_workers, machine_type=machine_type, **kwargs)
 
 
 executor = DaskExecutor(
-    # cluster_class=GCPCluster,
     cluster_class=dynamic_cluster,
     debug=True,
     # adapt_kwargs={"minimum": 2, "maximum": 30},
@@ -164,7 +164,7 @@ executor = DaskExecutor(
         "projectid": dask_projectid,
         "zone": dask_gcp_zone,
         "network": dask_network,
-        "machine_type": "n1-highmem-4",
+        # "machine_type": "n2-standard-16",
         "source_image": dask_image,
         "docker_image": docker_oxeo_flows,
         "bootstrap": False,
@@ -190,6 +190,8 @@ with Flow(
 
     # parameters
     flow.add_task(Parameter("n_workers", default=2))
+    flow.add_task(Parameter("machine_type", default="n2-standard-16"))
+
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
 
