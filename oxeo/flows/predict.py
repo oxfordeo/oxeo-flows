@@ -84,11 +84,10 @@ def create_masks(
 
 
 @task
-def merge_to_bq(
+def merge_to_timeseries(
     water_dict: WaterDict,
     model_name: str,
-    pfaf2: int = 12,
-) -> None:
+) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
     # oxeo-water merge_masks wants constellation as a parameter
@@ -96,7 +95,6 @@ def merge_to_bq(
     # Removed last bit of paths as parse_xy in model/utils expects
     # a different path structure (without contellation)
     paths = [p.path.split("/sentinel")[0] for p in water_dict.paths]
-    tiles = [p.tile.id for p in water_dict.paths]
 
     logger.info(f"Merge all masks in {paths}")
     full_mask, dates = merge_masks(
@@ -106,17 +104,32 @@ def merge_to_bq(
     )
     areas = metrics.segmentation_area(full_mask)
 
+    logger.info("Convert results to DataFrame")
+    df = pd.DataFrame(data={"date": dates, "area": areas})
+    df.date = df.date.apply(lambda x: x.date())  # remove time component
+
+    return df
+
+
+@task
+def log_to_bq(
+    df: pd.DataFrame,
+    water_dict: WaterDict,
+    model_name: str,
+    pfaf2: int = 12,
+) -> None:
+    logger = prefect.context.get("logger")
+    tiles = [p.tile.id for p in water_dict.paths]
+
+    logger.info("Prepare ts dataframe and model_run dict")
     area_id = water_dict.area_id
     run_id = f"{area_id}-{model_name}-{str(uuid4())[:8]}"
-
-    logger.info("Convert results to DataFrame and dict ")
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
-    df_ts = pd.DataFrame(data={"date": dates, "area": areas}).assign(
+    df = df.assign(
         area_id=area_id,
         run_id=run_id,
         pfaf2=pfaf2,
     )
-    df_ts.date = df_ts.date.apply(lambda x: x.date())  # remove time
 
     minx, miny, maxx, maxy = water_dict.geometry.bounds
 
@@ -136,7 +149,7 @@ def merge_to_bq(
     client = bigquery.Client()
 
     table = client.get_table("oxeo-main.water.water_ts")
-    errors = client.insert_rows_from_dataframe(table, df_ts)
+    errors = client.insert_rows_from_dataframe(table, df)
     if errors != [[]]:
         raise ValueError(
             f"there where {len(errors)} error when inserting. " + str(errors),
@@ -224,7 +237,13 @@ with Flow(
     # now instead of mapping across all paths, we map across
     # individual lakes
     water_dicts = get_water_dicts(gdf, bucket, constellations)
-    merge_to_bq.map(
+    ts_dfs = merge_to_timeseries.map(
+        water_dict=water_dicts,
+        model_name=unmapped(model_name),
+        upstream_tasks=[unmapped(masks)],
+    )
+    log_to_bq.map(
+        df=ts_dfs,
         water_dict=water_dicts,
         model_name=unmapped(model_name),
         upstream_tasks=[unmapped(masks)],
