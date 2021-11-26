@@ -24,9 +24,8 @@ from oxeo.flows import (
     prefect_secret_github_token,
     repo_name,
 )
+from oxeo.flows.models import TilePath, WaterDict
 from oxeo.flows.utils import (
-    TilePath,
-    WaterDict,
     data2gdf,
     fetch_water_list,
     generate_run_id,

@@ -9,6 +9,7 @@ on:
       - 'packer/packer.json'
       - 'cloudbuild.yaml'
       - 'oxeo/flows/utils.py'
+      - 'oxeo/flows/models.py'
   pull_request:
     branches: [ main ]
   workflow_dispatch:

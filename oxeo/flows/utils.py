@@ -3,7 +3,6 @@ from typing import List, Tuple, Union
 
 import geopandas as gpd
 import prefect
-from attr import frozen
 from prefect import task
 from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
@@ -11,6 +10,8 @@ from satextractor.models import Tile
 from satextractor.tiler import split_region_in_utm_tiles
 from shapely import wkb
 from shapely.geometry import MultiPolygon, Polygon
+
+from oxeo.flows.models import TilePath, WaterDict
 
 
 @task
@@ -85,23 +86,9 @@ def gdf2geom(gdf):
     return gdf.unary_union
 
 
-@frozen
-class TilePath:
-    tile: Tile
-    path: str
-
-
-@frozen
-class WaterDict:
-    area_id: int
-    name: str
-    geometry: Union[Polygon, MultiPolygon]
-    paths: List[TilePath]
-
-
 def make_paths(bucket, tiles, constellations):
     return [
-        TilePath(tile=tile, path=f"{bucket}/prod/{tile.id}/{cons}")
+        TilePath(tile=tile, constellation=cons)
         for tile in tiles
         for cons in constellations
     ]
