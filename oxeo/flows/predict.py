@@ -158,7 +158,6 @@ executor = DaskExecutor(
     cluster_kwargs={
         "projectid": cfg.dask_projectid,
         "zone": cfg.dask_gcp_zone,
-        "network": cfg.dask_network,
         # "machine_type": "n2-standard-16",
         "source_image": cfg.dask_image,
         "docker_image": cfg.docker_oxeo_flows,
