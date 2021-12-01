@@ -21,23 +21,17 @@ from satextractor.stac import gcp_region_to_item_collection
 from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
 
-from oxeo.flows import (
-    default_gcp_token,
-    docker_oxeo_flows,
-    prefect_secret_github_token,
-    repo_name,
-)
+import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
     gdf2geom,
     generate_run_id,
     get_waterbodies,
-    parse_water_list,
     parse_constellations,
+    parse_water_list,
     rename_flow_run,
 )
-
 from oxeo.water.models.utils import WaterBody
 
 
@@ -290,12 +284,12 @@ def log_to_bq(
 
 executor = DaskExecutor()
 storage = GitHub(
-    repo=repo_name,
+    repo=cfg.repo_name,
     path="oxeo/flows/extract.py",
-    access_token_secret=prefect_secret_github_token,
+    access_token_secret=cfg.prefect_secret_github_token,
 )
 run_config = KubernetesRun(
-    image=docker_oxeo_flows,
+    image=cfg.docker_oxeo_flows,
 )
 with Flow(
     "extract",
@@ -311,7 +305,7 @@ with Flow(
         name="water_list", required=True, default=[25906112, 25906127]
     )
 
-    credentials = Parameter(name="credentials", default=default_gcp_token)
+    credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")

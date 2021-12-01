@@ -7,7 +7,7 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 
-from oxeo.flows import docker_oxeo_flows, prefect_secret_github_token, repo_name
+import oxeo.flows.config as cfg
 from oxeo.flows.utils import rename_flow_run
 
 
@@ -67,9 +67,9 @@ executor = DaskExecutor()
 # needed at that moment
 # Dependencies are baked into the Docker image!
 storage = GitHub(
-    repo=repo_name,
+    repo=cfg.repo_name,
     path="oxeo/flows/predict.py",
-    access_token_secret=prefect_secret_github_token,
+    access_token_secret=cfg.prefect_secret_github_token,
 )
 
 # This specifies where the Flow is run.
@@ -79,7 +79,7 @@ storage = GitHub(
 # If you don't want to use a cluster, you can instead
 # just specify a beefier machine here!
 run_config = KubernetesRun(
-    image=docker_oxeo_flows,
+    image=cfg.docker_oxeo_flows,
 )
 with Flow(
     # don't forget to change this!

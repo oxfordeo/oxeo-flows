@@ -11,7 +11,8 @@ from satextractor.tiler import split_region_in_utm_tiles
 from shapely import wkb
 from shapely.geometry import MultiPolygon, Polygon
 
-from oxeo.water.models.utils import WaterBody, TilePath
+import oxeo.flows.config as cfg
+from oxeo.water.models.utils import TilePath, WaterBody
 
 
 @task
@@ -56,20 +57,15 @@ def rename_flow_run(
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
-DB_NAME = "geom"
-DB_USER = "reader"
-DB_HOST = "35.204.253.189"
-
-
 @task
 def fetch_water_list(
     water_list: List[int],
     password: str,
 ) -> List[Tuple[int, str, str]]:
     fetch = PostgresFetch(
-        db_name=DB_NAME,
-        user=DB_USER,
-        host=DB_HOST,
+        db_name=cfg.db_name,
+        user=cfg.db_user,
+        host=cfg.db_host,
         port=5432,
         fetch="all",
         query="SELECT area_id, name, geom FROM water WHERE area_id IN %s",

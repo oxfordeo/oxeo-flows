@@ -1,6 +1,6 @@
 from datetime import datetime
-from uuid import uuid4
 from typing import List
+from uuid import uuid4
 
 import gcsfs
 import numpy as np
@@ -15,29 +15,20 @@ from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 
-from oxeo.flows import (
-    dask_gcp_zone,
-    dask_image,
-    dask_network,
-    dask_projectid,
-    default_gcp_token,
-    docker_oxeo_flows,
-    prefect_secret_github_token,
-    repo_name,
-)
+import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
     generate_run_id,
     get_all_paths,
     get_waterbodies,
-    parse_water_list,
     parse_constellations,
+    parse_water_list,
     rename_flow_run,
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import merge_masks_all_constellations, WaterBody, TilePath
+from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
 @task
@@ -165,23 +156,23 @@ executor = DaskExecutor(
     debug=True,
     # adapt_kwargs={"minimum": 2, "maximum": 30},
     cluster_kwargs={
-        "projectid": dask_projectid,
-        "zone": dask_gcp_zone,
-        "network": dask_network,
+        "projectid": cfg.dask_projectid,
+        "zone": cfg.dask_gcp_zone,
+        "network": cfg.dask_network,
         # "machine_type": "n2-standard-16",
-        "source_image": dask_image,
-        "docker_image": docker_oxeo_flows,
+        "source_image": cfg.dask_image,
+        "docker_image": cfg.docker_oxeo_flows,
         "bootstrap": False,
         # "n_workers": 2,
     },
 )
 storage = GitHub(
-    repo=repo_name,
+    repo=cfg.repo_name,
     path="oxeo/flows/predict.py",
-    access_token_secret=prefect_secret_github_token,
+    access_token_secret=cfg.prefect_secret_github_token,
 )
 run_config = KubernetesRun(
-    image=docker_oxeo_flows,
+    image=cfg.docker_oxeo_flows,
 )
 with Flow(
     "predict",
@@ -199,7 +190,7 @@ with Flow(
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
 
-    credentials = Parameter(name="credentials", default=default_gcp_token)
+    credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     bucket = Parameter(name="bucket", default="oxeo-water")
     root_dir = Parameter(name="root_dir", default="prod")
