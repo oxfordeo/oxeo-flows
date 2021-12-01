@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import uuid4
+from typing import List
 
 import gcsfs
 import numpy as np
@@ -24,19 +25,19 @@ from oxeo.flows import (
     prefect_secret_github_token,
     repo_name,
 )
-from oxeo.flows.models import TilePath, WaterDict
 from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
     generate_run_id,
     get_all_paths,
-    get_water_dicts,
+    get_waterbodies,
     parse_water_list,
+    parse_constellations,
     rename_flow_run,
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import merge_masks
+from oxeo.water.models.utils import merge_masks_all_constellations, WaterBody, TilePath
 
 
 @task
@@ -54,23 +55,17 @@ def create_masks(
     predictor = model_factory(model_name).predictor()
 
     mapper = fs.get_mapper(f"{path.path}/data")
+    constellation = path.constellation
     arr = zarr.open(mapper, "r")
 
     masks = predictor.predict(
         arr,
-        bands_indexes={
-            "red": 3,
-            "green": 2,
-            "blue": 1,
-            "nir": 7,
-            "swir1": 11,
-            "swir2": 12,
-        },
+        constellation=constellation,
         compute=False,
     )
     masks = np.array(masks)
 
-    mask_mapper = fs.get_mapper(f"{path.path}/{model_name}")
+    mask_mapper = fs.get_mapper(f"{path.path}/mask/{model_name}")
     mask_arr = zarr.open_array(
         mask_mapper,
         "w",
@@ -85,7 +80,7 @@ def create_masks(
 
 @task
 def merge_to_timeseries(
-    water_dict: WaterDict,
+    waterbody: WaterBody,
     model_name: str,
 ) -> pd.DataFrame:
     logger = prefect.context.get("logger")
@@ -94,18 +89,13 @@ def merge_to_timeseries(
     # but we should merge all constellations together?
     # Removed last bit of paths as parse_xy in model/utils expects
     # a different path structure (without contellation)
-    paths = [p.path.split("/sentinel")[0] for p in water_dict.paths]
 
-    logger.info(f"Merge all masks in {paths}")
-    full_mask, dates = merge_masks(
-        paths,
-        patch_size=1000,
-        data=model_name,
+    logger.info(f"Merge all masks in {waterbody.paths}")
+    timeseries_masks = merge_masks_all_constellations(
+        waterbody=waterbody,
+        model_name=model_name,
     )
-    areas = metrics.segmentation_area(full_mask)
-
-    logger.info("Convert results to DataFrame")
-    df = pd.DataFrame(data={"date": dates, "area": areas})
+    df = metrics.segmentation_area_multiple(timeseries_masks)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
@@ -114,15 +104,16 @@ def merge_to_timeseries(
 @task
 def log_to_bq(
     df: pd.DataFrame,
-    water_dict: WaterDict,
+    waterbody: WaterBody,
     model_name: str,
+    constellations: List[str],
     pfaf2: int = 12,
 ) -> None:
     logger = prefect.context.get("logger")
-    tiles = [p.tile.id for p in water_dict.paths]
+    tiles = [p.tile.id for p in waterbody.paths]
 
     logger.info("Prepare ts dataframe and model_run dict")
-    area_id = water_dict.area_id
+    area_id = waterbody.area_id
     run_id = f"{area_id}-{model_name}-{str(uuid4())[:8]}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
     df = df.assign(
@@ -131,7 +122,7 @@ def log_to_bq(
         pfaf2=pfaf2,
     )
 
-    minx, miny, maxx, maxy = water_dict.geometry.bounds
+    minx, miny, maxx, maxy = waterbody.geometry.bounds
 
     dict_water = dict(
         run_id=run_id,
@@ -139,6 +130,7 @@ def log_to_bq(
         model=model_name,
         timestamp=timestamp,
         tiles=tiles,
+        constellations=constellations,
         bbox_n=maxy,
         bbox_s=miny,
         bbox_w=minx,
@@ -210,10 +202,12 @@ with Flow(
     credentials = Parameter(name="credentials", default=default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     bucket = Parameter(name="bucket", default="oxeo-water")
+    root_dir = Parameter(name="root_dir", default="prod")
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
 
     # rename the Flow run to reflect the parameters
+    constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list)
     run_id = generate_run_id(water_list)
     rename_flow_run(run_id)
@@ -223,7 +217,7 @@ with Flow(
     gdf = data2gdf(db_data)
 
     # start processing
-    all_paths = get_all_paths(gdf, bucket, constellations)
+    all_paths = get_all_paths(gdf, bucket, constellations, root_dir)
 
     # create_masks() is mapped in parallel across all the paths
     # the returned masks is an empty list purely for the DAG
@@ -236,15 +230,15 @@ with Flow(
 
     # now instead of mapping across all paths, we map across
     # individual lakes
-    water_dicts = get_water_dicts(gdf, bucket, constellations)
+    waterbodies = get_waterbodies(gdf, bucket, constellations, root_dir)
     ts_dfs = merge_to_timeseries.map(
-        water_dict=water_dicts,
+        waterbody=waterbodies,
         model_name=unmapped(model_name),
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
         df=ts_dfs,
-        water_dict=water_dicts,
+        waterbody=waterbodies,
         model_name=unmapped(model_name),
-        upstream_tasks=[unmapped(masks)],
+        constellations=unmapped(constellations),
     )

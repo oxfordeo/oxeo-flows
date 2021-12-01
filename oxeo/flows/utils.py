@@ -11,7 +11,18 @@ from satextractor.tiler import split_region_in_utm_tiles
 from shapely import wkb
 from shapely.geometry import MultiPolygon, Polygon
 
-from oxeo.flows.models import TilePath, WaterDict
+from oxeo.water.models.utils import WaterBody, TilePath
+
+
+@task
+def parse_constellations(constellations: Union[str, list]) -> List[str]:
+    if isinstance(constellations, str):
+        if "," in constellations:
+            return [c for c in constellations.split(",")]
+        else:
+            return [constellations]
+    else:
+        return constellations
 
 
 @task
@@ -52,7 +63,7 @@ DB_HOST = "35.204.253.189"
 
 @task
 def fetch_water_list(
-    water_list: Union[str, List[int]],
+    water_list: List[int],
     password: str,
 ) -> List[Tuple[int, str, str]]:
     fetch = PostgresFetch(
@@ -86,9 +97,9 @@ def gdf2geom(gdf):
     return gdf.unary_union
 
 
-def make_paths(bucket, tiles, constellations):
+def make_paths(bucket, tiles, constellations, root_dir):
     return [
-        TilePath(tile=tile, constellation=cons)
+        TilePath(tile=tile, constellation=cons, root=root_dir)
         for tile in tiles
         for cons in constellations
     ]
@@ -109,10 +120,11 @@ def get_all_paths(
     gdf: gpd.GeoDataFrame,
     bucket: str,
     constellations: List[str],
+    root_dir: str = "prod",
 ) -> List[TilePath]:
     logger = prefect.context.get("logger")
     all_tiles = get_tiles(gdf)
-    all_tilepaths = make_paths(bucket, all_tiles, constellations)
+    all_tilepaths = make_paths(bucket, all_tiles, constellations, root_dir)
     logger.info(
         f"All tiles for the supplied geometry: {[t.path for t in all_tilepaths]}"
     )
@@ -120,17 +132,21 @@ def get_all_paths(
 
 
 @task
-def get_water_dicts(
+def get_waterbodies(
     gdf: gpd.GeoDataFrame,
     bucket: str,
     constellations: List[str],
-) -> List[WaterDict]:
+    root_dir: str = "prod",
+) -> List[WaterBody]:
     logger = prefect.context.get("logger")
     logger.info("Getting separate tiles and paths for each waterbody")
-    water_dicts = []
+    waterbodies = []
     for water in gdf.to_dict(orient="records"):
         tiles = get_tiles(water["geometry"])
-        water_dicts.append(
-            WaterDict(**water, paths=make_paths(bucket, tiles, constellations))
+        waterbodies.append(
+            WaterBody(
+                **water,
+                paths=make_paths(bucket, tiles, constellations, root_dir=root_dir),
+            )
         )
-    return water_dicts
+    return waterbodies

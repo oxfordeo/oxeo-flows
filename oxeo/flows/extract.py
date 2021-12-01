@@ -28,29 +28,31 @@ from oxeo.flows import (
     repo_name,
 )
 from oxeo.flows.utils import (
-    WaterDict,
     data2gdf,
     fetch_water_list,
     gdf2geom,
     generate_run_id,
-    get_water_dicts,
+    get_waterbodies,
     parse_water_list,
+    parse_constellations,
     rename_flow_run,
 )
+
+from oxeo.water.models.utils import WaterBody
 
 
 @task
 def get_storage_path(
-    storage_root: str,
+    bucket: str,
+    root_dir: str,
 ) -> str:
-    return f"gs://{storage_root}/prod"
+    return f"gs://{bucket}/{root_dir}"
 
 
 @task
 def build(
     project: str,
     gcp_region: str,
-    storage_root: str,
     credentials: Path,
     user_id: str,
 ) -> bool:
@@ -213,7 +215,7 @@ def check_deploy_completion(
     while True:
         client = bigquery.Client()
         table = f"{project}.satextractor.{user_id}"
-        query = f"SELECT COUNT(msg_type) FROM {table} WHERE job_id = '{job_id}' AND msg_type = 'FINISHED'"
+        query = f"SELECT COUNT(msg_type) FROM `{table}` WHERE job_id = '{job_id}' AND msg_type = 'FINISHED'"
         df = client.query(query).result().to_dataframe()
         done = int(df.iat[0, 0])
         logger.info(f"Cloud Run extraction tasks: {done} of {tot}")
@@ -241,7 +243,7 @@ def check_deploy_completion(
 
 @task
 def log_to_bq(
-    water_dict: WaterDict,
+    waterbody: WaterBody,
     start_date: str,
     end_date: str,
     constellations: List[str],
@@ -251,14 +253,14 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
 
-    area_id = water_dict.area_id
+    area_id = waterbody.area_id
     run_id = f"{area_id}-{str(uuid4())[:8]}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
-    minx, miny, maxx, maxy = water_dict.geometry.bounds
+    minx, miny, maxx, maxy = waterbody.geometry.bounds
 
     logger.info(f"Log lake {area_id} extraction to BQ")
 
-    tiles = [p.tile.id for p in water_dict.paths]
+    tiles = [p.tile.id for p in waterbody.paths]
     dict_water = dict(
         run_id=run_id,
         area_id=area_id,
@@ -313,7 +315,8 @@ with Flow(
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")
-    bucket = Parameter(name="storage_root", default="oxeo-water")
+    bucket = Parameter(name="bucket", default="oxeo-water")
+    root_dir = Parameter(name="root_dir", default="prod")
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
@@ -324,6 +327,7 @@ with Flow(
     chunk_size = Parameter(name="chunk_size", default=1000)
 
     # rename the Flow run to reflect the parameters
+    constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list)
     run_id = generate_run_id(water_list)
     rename_flow_run(run_id)
@@ -334,8 +338,8 @@ with Flow(
     aoi_geom = gdf2geom(gdf)
 
     # run the flow
-    storage_path = get_storage_path(bucket)
-    built = build(project, gcp_region, bucket, credentials, user_id)
+    storage_path = get_storage_path(bucket, root_dir)
+    built = build(project, gcp_region, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
     extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
@@ -360,9 +364,9 @@ with Flow(
 
     complete = check_deploy_completion(project, user_id, job_id, extraction_tasks)
 
-    water_dicts = get_water_dicts(gdf, bucket, constellations)
+    waterbodies = get_waterbodies(gdf, bucket, constellations)
     log_to_bq.map(
-        water_dict=water_dicts,
+        waterbody=waterbodies,
         start_date=unmapped(start_date),
         end_date=unmapped(end_date),
         constellations=unmapped(constellations),
