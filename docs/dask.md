@@ -4,6 +4,8 @@ Parallelism within a Flow run can use a `LocalDaskExecutor`, which will just sca
 For larger parallelism, we need to use some kind of distributed Dask infrastructure.
 There are several ways of achieving this, described below.
 
+**NB**: Since the Prefect Agent is now running in GKE, which its on top of GCE (unlike Vertex), we don't need the VPC Peering stuff any more. Everything runs on the `default` network, and all that is necessary is to open ingress on `10.0.0.0/8` so that the GKE Agent can talk to the GCE Scheduler and Workers.
+
 ## VPC Peering
 All of these solutions rely on Vertex talking to resources in Google Compute.
 As Vertex is not automatically part of the Compute VPC, it needs to be peered and/or the VPC must allow public ingress on the Dask ports.

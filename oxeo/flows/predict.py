@@ -133,13 +133,15 @@ def log_to_bq(
 
     table = client.get_table("oxeo-main.water.water_ts")
     errors = client.insert_rows_from_dataframe(table, df)
-    if errors != [[]]:
+    logger.info(f"Inserting DataFrame response: (empty is good) {errors}")
+    if not all(len(l) == 0 for l in errors):
         raise ValueError(
             f"there where {len(errors)} error when inserting. " + str(errors),
         )
 
     errors = client.insert_rows_json("oxeo-main.water.water_model_runs", [dict_water])
-    if errors != []:
+    logger.info(f"Inserting dict response: (empty is good) {errors}")
+    if not len(errors) == 0:
         raise ValueError(
             f"there where {len(errors)} error when inserting. " + str(errors),
         )
