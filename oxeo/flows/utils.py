@@ -7,6 +7,7 @@ from prefect import task
 from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
 from satextractor.models import Tile
+from satextractor.models.constellation_info import BAND_INFO
 from satextractor.tiler import split_region_in_utm_tiles
 from shapely import wkb
 from shapely.geometry import MultiPolygon, Polygon
@@ -17,13 +18,19 @@ from oxeo.water.models.utils import TilePath, WaterBody
 
 @task
 def parse_constellations(constellations: Union[str, list]) -> List[str]:
+    all_constellations = list(BAND_INFO.keys()) + ["sentinel-1"]
     if isinstance(constellations, str):
-        if "," in constellations:
-            return [c for c in constellations.split(",")]
+        if constellations == "all":
+            constellations = all_constellations
+        elif "," in constellations:
+            constellations = [c for c in constellations.split(",")]
         else:
-            return [constellations]
-    else:
-        return constellations
+            constellations = [constellations]
+
+    assert all(
+        c in all_constellations for c in constellations
+    ), f"All constellations must be in {all_constellations}, but passed {constellations}"
+    return constellations
 
 
 @task
