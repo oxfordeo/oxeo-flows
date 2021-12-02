@@ -9,7 +9,7 @@
             "zone": "europe-west4-a",
             "on_host_maintenance": "TERMINATE",
             "disk_size": "30",
-            "subnetwork": "dask",
+            "subnetwork": "default",
             "machine_type": "n1-highmem-2",
             "metadata": {
                 "user-data": "#cloud-config\n# Bootstrap\npackages:\n  - apt-transport-https\n  - ca-certificates\n  - curl\n  - gnupg-agent\n  - software-properties-common\n  - ubuntu-drivers-common\n\n# Enable ipv4 forwarding, required on CIS hardened machines\nwrite_files:\n  - path: /etc/sysctl.d/enabled_ipv4_forwarding.conf\n    content: |\n      net.ipv4.conf.all.forwarding=1\n\n# create the docker group\ngroups:\n  - docker\n\n# Add default auto created user to docker group\nsystem_info:\n  default_user:\n    groups: [docker]\n\nruncmd:\n  # Install Docker\n  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -\n  - add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"\n  - apt-get update -y\n  - apt-get install -y docker-ce docker-ce-cli containerd.io\n  - systemctl start docker\n  - systemctl enable docker\n  - gcloud auth configure-docker\n  - 'docker run --net=host eu.gcr.io/oxeo-main/oxeo-flows:latest dask-scheduler --version'\n"
