@@ -45,7 +45,9 @@ def create_masks(
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     predictor = model_factory(model_name).predictor()
 
-    mapper = fs.get_mapper(f"{path.path}/data")
+    data_path = f"{path.path}/data"
+    logger.info(f"Getting arr from {data_path}")
+    mapper = fs.get_mapper(data_path)
     constellation = path.constellation
     arr = zarr.open(mapper, "r")
 
@@ -56,7 +58,9 @@ def create_masks(
     )
     masks = np.array(masks)
 
-    mask_mapper = fs.get_mapper(f"{path.path}/mask/{model_name}")
+    mask_path = f"{path.path}/mask/{model_name}"
+    logger.info(f"Saving mask to {mask_path}")
+    mask_mapper = fs.get_mapper(mask_path)
     mask_arr = zarr.open_array(
         mask_mapper,
         "w",
