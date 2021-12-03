@@ -6,6 +6,7 @@ import prefect
 from prefect import task
 from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
+from pyproj import CRS
 from satextractor.models import Tile
 from satextractor.models.constellation_info import BAND_INFO
 from satextractor.tiler import split_region_in_utm_tiles
@@ -92,6 +93,7 @@ def data2gdf(
     wkb_hex = partial(wkb.loads, hex=True)
     gdf = gpd.GeoDataFrame(data, columns=["area_id", "name", "geometry"])
     gdf.geometry = gdf.geometry.apply(wkb_hex)
+    gdf.crs = CRS.from_epsg(4326)
     return gdf
 
 

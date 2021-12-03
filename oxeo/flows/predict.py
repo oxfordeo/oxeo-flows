@@ -46,7 +46,7 @@ def create_masks(
     predictor = model_factory(model_name).predictor()
 
     data_path = f"{path.path}/data"
-    logger.info(f"Getting arr from {data_path}")
+    logger.info(f"Getting arr from {data_path=}")
     mapper = fs.get_mapper(data_path)
     constellation = path.constellation
     arr = zarr.open(mapper, "r")
@@ -90,7 +90,7 @@ def merge_to_timeseries(
         waterbody=waterbody,
         model_name=model_name,
     )
-    df = metrics.segmentation_area_multiple(timeseries_masks)
+    df = metrics.segmentation_area_multiple(timeseries_masks, waterbody)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
