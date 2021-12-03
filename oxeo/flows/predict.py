@@ -14,6 +14,7 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from zarr.errors import PathNotFoundError
 
 import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
@@ -45,11 +46,15 @@ def create_masks(
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     predictor = model_factory(model_name).predictor()
 
-    data_path = f"{path.path}/data"
-    logger.info(f"Getting arr from {data_path=}")
-    mapper = fs.get_mapper(data_path)
-    constellation = path.constellation
-    arr = zarr.open(mapper, "r")
+    try:
+        data_path = f"{path.path}/data"
+        logger.info(f"Getting arr from {data_path=}")
+        mapper = fs.get_mapper(data_path)
+        constellation = path.constellation
+        arr = zarr.open(mapper, "r")
+    except (Exception, PathNotFoundError) as e:
+        logger.warning(f"Couldn't load zarr at {data_path=} error {e}, ignoring")
+        return
 
     masks = predictor.predict(
         arr,
