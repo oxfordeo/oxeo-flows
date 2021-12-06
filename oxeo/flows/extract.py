@@ -254,7 +254,7 @@ def log_to_bq(
 
     logger.info(f"Log lake {area_id} extraction to BQ")
 
-    tiles = [p.tile.id for p in waterbody.paths]
+    tiles = list({p.tile.id for p in waterbody.paths})
     dict_water = dict(
         run_id=run_id,
         area_id=area_id,

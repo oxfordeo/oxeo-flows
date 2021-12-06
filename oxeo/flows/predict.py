@@ -110,7 +110,7 @@ def log_to_bq(
     pfaf2: int = 12,
 ) -> None:
     logger = prefect.context.get("logger")
-    tiles = [p.tile.id for p in waterbody.paths]
+    tiles = list({p.tile.id for p in waterbody.paths})
 
     logger.info("Prepare ts dataframe and model_run dict")
     area_id = waterbody.area_id
