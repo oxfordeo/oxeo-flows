@@ -290,6 +290,8 @@ storage = GitHub(
 )
 run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
+    cpu_request=8, 
+    memory_request="32Gi",
 )
 with Flow(
     "extract",
