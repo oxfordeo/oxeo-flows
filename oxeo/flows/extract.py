@@ -97,6 +97,8 @@ def stac(
 ) -> pystac.ItemCollection:
     logger = prefect.context.get("logger")
     logger.info("Converting data to STAC")
+    if start_date > end_date:
+        raise ValueError("Start date must be before end date!")
     item_collection = gcp_region_to_item_collection(
         credentials=credentials,
         region=region,
@@ -290,7 +292,7 @@ storage = GitHub(
 )
 run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
-    cpu_request=8, 
+    cpu_request=8,
     memory_request="32Gi",
 )
 with Flow(
