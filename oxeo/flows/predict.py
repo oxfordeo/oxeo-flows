@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import prefect
 import zarr
-from dask_cloudprovider.gcp import GCPCluster
+from dask_kubernetes import KubeCluster, make_pod_spec
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
@@ -158,23 +158,23 @@ def log_to_bq(
 
 def dynamic_cluster(**kwargs):
     n_workers = prefect.context.parameters["n_workers"]
-    machine_type = prefect.context.parameters["machine_type"]
-    return GCPCluster(n_workers=n_workers, machine_type=machine_type, **kwargs)
+    memory = prefect.context.parameters["memory_per_worker"]
+    cpu = prefect.context.parameters["cpu_per_worker"]
+    pod_spec = make_pod_spec(
+        image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
+        memory_limit=memory,
+        memory_request=memory,
+        cpu_limit=cpu,
+        cpu_request=cpu,
+    )
+    pod_spec.spec.containers[0].args.append("--no-dashboard")
+    return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
 
 
 executor = DaskExecutor(
     cluster_class=dynamic_cluster,
-    debug=True,
-    # adapt_kwargs={"minimum": 2, "maximum": 30},
-    cluster_kwargs={
-        "projectid": cfg.dask_projectid,
-        "zone": cfg.dask_gcp_zone,
-        # "machine_type": "n2-standard-16",
-        "source_image": cfg.dask_image,
-        "docker_image": cfg.docker_oxeo_flows,
-        "bootstrap": False,
-        # "n_workers": 2,
-    },
+    # adapt_kwargs={"minimum": 2, "maximum": 100},
+    cluster_kwargs={},
 )
 storage = GitHub(
     repo=cfg.repo_name,
@@ -195,7 +195,8 @@ with Flow(
 
     # parameters
     flow.add_task(Parameter("n_workers", default=2))
-    flow.add_task(Parameter("machine_type", default="n2-standard-16"))
+    flow.add_task(Parameter("memory_per_worker", default="32G"))
+    flow.add_task(Parameter("cpu_per_worker", default=8))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
