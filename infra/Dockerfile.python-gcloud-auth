@@ -31,9 +31,3 @@ RUN sed -i -e "s/-----BEGIN OPENSSH PRIVATE KEY-----/&\n/"\
     eval $(ssh-agent) && \
     ssh-add /root/.ssh/id_rsa && \
     ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
-
-
-# Install requirements
-COPY . oxeo-flows
-RUN pip install --upgrade pip && \
-    pip install oxeo-flows/

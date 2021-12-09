@@ -1,15 +1,14 @@
-name: build-deploy
+name: build-images
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'setup.cfg'
-      - 'Dockerfile'
-      - 'packer/packer.json'
-      - 'cloudbuild.yaml'
+      - 'infra/Dockerfile.oxeo-flows'
+      - 'infra/packer/packer.json'
+      - 'infra/cloudbuild-oxeo-flows.yaml'
       - 'oxeo/flows/utils.py'
-      - 'oxeo/flows/models.py'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -30,7 +29,7 @@ jobs:
 
       - name: Submit to Cloud Build
         run: |
-          gcloud builds submit . --config=cloudbuild.yaml
+          gcloud builds submit . --config=infra/cloudbuild-oxeo-flows.yaml
 
   packer:
     needs: cloudbuild
@@ -44,7 +43,7 @@ jobs:
         with:
           only: googlecompute
           secret: ${{ secrets.GCP_PREFECT_SERV_ACC }}
-          template: packer/packer.json
+          template: infra/packer/packer.json
           options: "-force"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: '/tmp/packer-secret'

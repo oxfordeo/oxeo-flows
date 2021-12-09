@@ -10,10 +10,11 @@ steps:
       - 'echo $$SSH > key &&
          echo $$GCP_TOKEN > token &&
           docker build .
-          --tag=eu.gcr.io/$PROJECT_ID/oxeo-flows
+          --file=infra/Dockerfile.python-gcloud-auth
+          --tag=eu.gcr.io/$PROJECT_ID/python-gcloud-auth
           --build-arg=PREFECT=$$PREFECT'
 images:
-  - 'eu.gcr.io/$PROJECT_ID/oxeo-flows'
+  - 'eu.gcr.io/$PROJECT_ID/python-gcloud-auth'
 availableSecrets:
   secretManager:
   - versionName: 'projects/$PROJECT_ID/secrets/github-machine-ssh-key/versions/1'

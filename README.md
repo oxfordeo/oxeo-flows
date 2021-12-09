@@ -1,6 +1,6 @@
 # oxeo-flows
 [![prefect-register](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml)
-[![build-deploy](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml)
+[![build-images](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-images.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-images.yml)
 
 Repository for managing pipelines etc, using Prefect for orchestration.
 
