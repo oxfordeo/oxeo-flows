@@ -26,11 +26,10 @@ Something like what is described [here](https://github.com/PrefectHQ/prefect/iss
 │       ├── predict.py
 │       ├── template.py  # TEMPLATE FLOW FILE HAVE A LOOK!
 │       └── utils.py
-├── packer               # Packer creates the Dask OS image
+├── infra                # Docker, Kubernetes and Dask stuff
 │   └── ...
 ├── docs                 # useful docs and commands
 │   └── ...
-├── helm-chart-dask.yaml # Dask Helm chart config (not using)
 └── ...
 ```
 
