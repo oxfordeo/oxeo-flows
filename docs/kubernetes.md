@@ -32,7 +32,19 @@ prefect agent kubernetes start --key=$PREFECT_KUB_KEY
 
 Run the agent in cluster:
 ```
-prefect agent kubernetes install -k $PREFECT_KUB_KEY --rbac | kubectl apply -f -
+export PREFECT_KUB_KEY=...
+prefect agent kubernetes install -k $PREFECT_KUB_KEY --rbac | \
+  kubectl apply -f -
+```
+
+The command above creates a YAML config and then passes it to kubectl. However, it doesn't have sufficient RBAC permissions for the KubeCluster Dask Cluster (which will be run from the same Kubernetes service account), so there are additional permissions added in [../infra/kubernetes-agent.yaml](../infra/kubernetes-agent.yaml).
+
+Then run as follows (*instead of the command above!*). (This uses `sed` to drop the Prefect key into the required spot.)
+```
+export PREFECT_KUB_KEY=...
+cat infra/kubernetes-agent.yaml \
+  | sed "s/API_KEY_HERE/$PREFECT_KUB_KEY/g" \
+  | kubectl apply -f -
 ```
 
 Watch with:
