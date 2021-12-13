@@ -59,7 +59,6 @@ def create_masks(
     masks = predictor.predict(
         arr,
         constellation=constellation,
-        compute=False,
     )
     masks = np.array(masks)
 
