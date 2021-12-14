@@ -15,6 +15,7 @@ from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.deployer import deploy_tasks
 from satextractor.models import ExtractionTask, Tile
+from satextractor.plugins import copy_mtl_files
 from satextractor.preparer.gcp_preparer import gcp_prepare_archive
 from satextractor.scheduler import create_tasks_by_splits
 from satextractor.stac import gcp_region_to_item_collection
@@ -194,6 +195,17 @@ def deployer(
 
 
 @task
+def copy_metadata(
+    credentials: str,
+    extraction_tasks: List[ExtractionTask],
+    storage_path: str,
+) -> None:
+    logger = prefect.context.get("logger")
+    logger.info("Copying MTL metadata files for any landsat data")
+    copy_mtl_files(credentials, extraction_tasks, storage_path)
+
+
+@task
 def check_deploy_completion(
     project: str,
     user_id: str,
@@ -359,6 +371,7 @@ with Flow(
         extraction_tasks,
         upstream_tasks=[built, prepped],
     )
+    copy_metadata(credentials, extraction_tasks, storage_path)
 
     complete = check_deploy_completion(project, user_id, job_id, extraction_tasks)
 
