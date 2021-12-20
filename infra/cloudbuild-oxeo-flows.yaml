@@ -5,6 +5,6 @@ steps:
       - '.'
       - '--file=infra/Dockerfile.oxeo-flows'
       - '--tag=eu.gcr.io/$PROJECT_ID/oxeo-flows'
-      - '---timeout=900s'
 images:
   - 'eu.gcr.io/$PROJECT_ID/oxeo-flows'
+timeout: 900s
