@@ -47,7 +47,7 @@ def create_masks(
     predictor = model_factory(model_name).predictor()
 
     try:
-        data_path = f"{path.path}/data"
+        data_path = f"{path.data_path}"
         logger.info(f"Getting arr from {data_path=}")
         mapper = fs.get_mapper(data_path)
         constellation = path.constellation
@@ -62,7 +62,7 @@ def create_masks(
     )
     masks = np.array(masks)
 
-    mask_path = f"{path.path}/mask/{model_name}"
+    mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
     mask_mapper = fs.get_mapper(mask_path)
     mask_arr = zarr.open_array(
@@ -80,7 +80,6 @@ def create_masks(
 @task
 def merge_to_timeseries(
     waterbody: WaterBody,
-    model_name: str,
 ) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
@@ -92,7 +91,6 @@ def merge_to_timeseries(
     logger.info(f"Merge all masks in {waterbody.paths}")
     timeseries_masks = merge_masks_all_constellations(
         waterbody=waterbody,
-        model_name=model_name,
     )
     df = metrics.segmentation_area_multiple(timeseries_masks, waterbody)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
@@ -234,7 +232,6 @@ with Flow(
     waterbodies = get_waterbodies(gdf, bucket, constellations, root_dir)
     ts_dfs = merge_to_timeseries.map(
         waterbody=waterbodies,
-        model_name=unmapped(model_name),
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
