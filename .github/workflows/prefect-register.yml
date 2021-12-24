@@ -12,7 +12,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: osgeo/gdal:ubuntu-full-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -28,6 +27,7 @@ jobs:
           python-version: 3.8
 
       - name: Install dependencies
+        uses: docker://osgeo/gdal:ubuntu-small-latest
         run: pip install .
 
       - name: Register with Prefect
