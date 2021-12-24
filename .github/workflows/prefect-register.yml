@@ -26,8 +26,10 @@ jobs:
         with:
           python-version: 3.8
 
+      - name: Install Conda dependencies
+        run: $CONDA/bin/conda install -c conda-forge gdal
+
       - name: Install dependencies
-        uses: docker://osgeo/gdal:ubuntu-small-latest
         run: pip install .
 
       - name: Register with Prefect
