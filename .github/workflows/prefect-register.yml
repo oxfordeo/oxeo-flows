@@ -26,11 +26,9 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install Conda dependencies
-        run: $CONDA/bin/conda install -c conda-forge gdal
-
       - name: Install dependencies
-        run: pip install .
+        run: $CONDA/bin/conda install -c conda-forge gdal
+             pip install .
 
       - name: Register with Prefect
         env:
