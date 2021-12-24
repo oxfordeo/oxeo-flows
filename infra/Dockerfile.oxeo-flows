@@ -4,4 +4,4 @@ FROM eu.gcr.io/oxeo-main/python-gcloud-auth:latest
 
 COPY . oxeo-flows
 
-RUN pip install oxeo-flows/
+RUN pip install oxeo-flows/[extras]
