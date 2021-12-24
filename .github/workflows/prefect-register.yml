@@ -12,7 +12,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: osgeo/gdal:ubuntu-latest
+    container: osgeo/gdal:ubuntu-full-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
