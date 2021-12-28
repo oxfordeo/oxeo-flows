@@ -207,7 +207,7 @@ with Flow(
     root_dir = Parameter(name="root_dir", default="prod")
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
-    ckpt_path = Parameter(name="cktp_path", default=None)
+    ckpt_path = Parameter(name="cktp_path", default="gs://oxeo-models/semseg/last.ckpt")
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
