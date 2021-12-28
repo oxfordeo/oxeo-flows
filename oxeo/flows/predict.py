@@ -34,17 +34,21 @@ from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constel
 
 @task
 def create_masks(
-    path: TilePath,
-    model_name: str,
-    project: str,
-    credentials: str,
+    path: TilePath, model_name: str, project: str, credentials: str, ckpt_path: str
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
-    predictor = model_factory(model_name).predictor()
+
+    if "cnn" in model_name:
+        label = model_name.split("_")[1]
+        predictor = model_factory(model_name).predictor(
+            ckpt_path=ckpt_path, label=label, fs=fs
+        )
+    else:
+        predictor = model_factory(model_name).predictor()
 
     try:
         data_path = f"{path.data_path}"
@@ -78,9 +82,7 @@ def create_masks(
 
 
 @task
-def merge_to_timeseries(
-    waterbody: WaterBody,
-) -> pd.DataFrame:
+def merge_to_timeseries(waterbody: WaterBody, mask: str) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
     # oxeo-water merge_masks wants constellation as a parameter
@@ -91,6 +93,7 @@ def merge_to_timeseries(
     logger.info(f"Merge all masks in {waterbody.paths}")
     timeseries_masks = merge_masks_all_constellations(
         waterbody=waterbody,
+        mask=mask,
     )
     df = metrics.segmentation_area_multiple(timeseries_masks, waterbody)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
@@ -204,6 +207,7 @@ with Flow(
     root_dir = Parameter(name="root_dir", default="prod")
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
+    ckpt_path = Parameter(name="cktp_path", default=None)
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
@@ -225,6 +229,7 @@ with Flow(
         model_name=unmapped(model_name),
         project=unmapped(project),
         credentials=unmapped(credentials),
+        ckpt_path=ckpt_path,
     )
 
     # now instead of mapping across all paths, we map across
@@ -232,6 +237,7 @@ with Flow(
     waterbodies = get_waterbodies(gdf, bucket, constellations, root_dir)
     ts_dfs = merge_to_timeseries.map(
         waterbody=waterbodies,
+        mask=unmapped(model_name),
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
