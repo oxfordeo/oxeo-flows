@@ -229,7 +229,7 @@ with Flow(
         model_name=unmapped(model_name),
         project=unmapped(project),
         credentials=unmapped(credentials),
-        ckpt_path=ckpt_path,
+        ckpt_path=unmapped(ckpt_path),
     )
 
     # now instead of mapping across all paths, we map across
