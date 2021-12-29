@@ -29,12 +29,23 @@ from oxeo.flows.utils import (
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
+from oxeo.water.models.utils import (
+    TilePath,
+    WaterBody,
+    merge_masks_all_constellations,
+    load_tile,
+)
 
 
 @task
 def create_masks(
-    path: TilePath, model_name: str, project: str, credentials: str, ckpt_path: str
+    path: TilePath,
+    model_name: str,
+    project: str,
+    credentials: str,
+    ckpt_path: str,
+    target_size: int,
+    bands: List[str],
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
@@ -42,23 +53,33 @@ def create_masks(
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
 
+    constellation = path.constellation
+
     if "cnn" in model_name:
         label = model_name.split("_")[1]
         predictor = model_factory(model_name).predictor(
             ckpt_path=ckpt_path, label=label, fs=fs
         )
+        tile = load_tile(
+            fs.get_mapper,
+            path,
+            revisit=slice(None),
+            target_size=target_size,
+            bands=bands,
+        )
+        arr = tile["image"].numpy()
+
     else:
         predictor = model_factory(model_name).predictor()
 
-    try:
-        data_path = f"{path.data_path}"
-        logger.info(f"Getting arr from {data_path=}")
-        mapper = fs.get_mapper(data_path)
-        constellation = path.constellation
-        arr = zarr.open(mapper, "r")
-    except (Exception, PathNotFoundError) as e:
-        logger.warning(f"Couldn't load zarr at {data_path=} error {e}, ignoring")
-        return
+        try:
+            data_path = f"{path.data_path}"
+            logger.info(f"Getting arr from {data_path=}")
+            mapper = fs.get_mapper(data_path)
+            arr = zarr.open(mapper, "r")
+        except (Exception, PathNotFoundError) as e:
+            logger.warning(f"Couldn't load zarr at {data_path=} error {e}, ignoring")
+            return
 
     masks = predictor.predict(
         arr,
@@ -208,6 +229,10 @@ with Flow(
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
     ckpt_path = Parameter(name="cktp_path", default="gs://oxeo-models/semseg/last.ckpt")
+    target_size = Parameter(name="target_size", default=1000)
+    bands = Parameter(
+        name="bands", default=["nir", "red", "green", "blue", "swir1", "swir2"]
+    )
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
@@ -230,6 +255,8 @@ with Flow(
         project=unmapped(project),
         credentials=unmapped(credentials),
         ckpt_path=unmapped(ckpt_path),
+        target_size=unmapped(target_size),
+        bands=unmapped(bands),
     )
 
     # now instead of mapping across all paths, we map across
