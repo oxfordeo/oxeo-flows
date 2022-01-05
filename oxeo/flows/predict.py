@@ -60,14 +60,25 @@ def create_masks(
         predictor = model_factory(model_name).predictor(
             ckpt_path=ckpt_path, label=label, fs=fs
         )
-        tile = load_tile(
-            fs.get_mapper,
-            path,
-            revisit=slice(None),
-            target_size=target_size,
-            bands=bands,
-        )
-        arr = tile["image"].numpy()
+        # get shape to know how many revisits we have
+        shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
+        masks = []
+        step = 8
+        for i in range(0, shape[0], step):
+            tile = load_tile(
+                fs.get_mapper,
+                path,
+                revisit=slice(i, i + step),
+                target_size=target_size,
+                bands=bands,
+            )
+            arr = tile["image"].numpy()
+            revisit_masks = predictor.predict(
+                arr,
+                constellation=constellation,
+            )
+            masks.append(revisit_masks)
+        masks = np.vstack(masks)
 
     else:
         predictor = model_factory(model_name).predictor()
@@ -81,11 +92,11 @@ def create_masks(
             logger.warning(f"Couldn't load zarr at {data_path=} error {e}, ignoring")
             return
 
-    masks = predictor.predict(
-        arr,
-        constellation=constellation,
-    )
-    masks = np.array(masks)
+        masks = predictor.predict(
+            arr,
+            constellation=constellation,
+        )
+        masks = np.array(masks)
 
     mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
