@@ -34,6 +34,7 @@ from oxeo.water.models.utils import (
     WaterBody,
     merge_masks_all_constellations,
     load_tile,
+    resize_sample,
 )
 
 
@@ -56,26 +57,21 @@ def create_masks(
     constellation = path.constellation
 
     if "cnn" in model_name:
-        label = model_name.split("_")[1]
-        predictor = model_factory(model_name).predictor(
-            ckpt_path=ckpt_path, label=label, fs=fs
-        )
+        predictor = model_factory(model_name).predictor(ckpt_path=ckpt_path, fs=fs)
         # get shape to know how many revisits we have
         shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
         masks = []
         step = 8
         for i in range(0, shape[0], step):
-            tile = load_tile(
+            sample = load_tile(
                 fs.get_mapper,
                 path,
                 revisit=slice(i, i + step),
-                target_size=target_size,
                 bands=bands,
             )
-            arr = tile["image"].numpy()
             revisit_masks = predictor.predict(
-                arr,
-                constellation=constellation,
+                sample,
+                target_size=target_size,
             )
             masks.append(revisit_masks)
         masks = np.vstack(masks)
@@ -114,7 +110,7 @@ def create_masks(
 
 
 @task
-def merge_to_timeseries(waterbody: WaterBody, mask: str) -> pd.DataFrame:
+def merge_to_timeseries(waterbody: WaterBody, mask: str, label:int) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
     # oxeo-water merge_masks wants constellation as a parameter
@@ -127,7 +123,7 @@ def merge_to_timeseries(waterbody: WaterBody, mask: str) -> pd.DataFrame:
         waterbody=waterbody,
         mask=mask,
     )
-    df = metrics.segmentation_area_multiple(timeseries_masks, waterbody)
+    df = metrics.segmentation_area_multiple(timeseries_masks, waterbody, label)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
@@ -244,6 +240,7 @@ with Flow(
     bands = Parameter(
         name="bands", default=["nir", "red", "green", "blue", "swir1", "swir2"]
     )
+    timeseries_label = Parameter(name="timeseries_label", default=1)
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
@@ -276,6 +273,7 @@ with Flow(
     ts_dfs = merge_to_timeseries.map(
         waterbody=waterbodies,
         mask=unmapped(model_name),
+        label=unmapped(timeseries_label)
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
