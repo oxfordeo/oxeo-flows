@@ -273,7 +273,7 @@ with Flow(
     ts_dfs = merge_to_timeseries.map(
         waterbody=waterbodies,
         mask=unmapped(model_name),
-        label=unmapped(timeseries_label)
+        label=unmapped(timeseries_label),
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
