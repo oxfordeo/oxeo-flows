@@ -26,8 +26,12 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install Conda dependencies
-        run: $CONDA/bin/conda install -c conda-forge gdal
+      - name: Install GDAL dependencies
+        run: |
+          sudo apt-add-repository ppa:ubuntugis/ubuntugis-unstable
+          sudo apt-get update
+          sudo apt-get install gdal-bin libgdal-dev
+          pip install wheel
 
       - name: Install dependencies
         run: pip install .
