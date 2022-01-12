@@ -32,9 +32,8 @@ from oxeo.water.models import model_factory
 from oxeo.water.models.utils import (
     TilePath,
     WaterBody,
-    merge_masks_all_constellations,
     load_tile,
-    resize_sample,
+    merge_masks_all_constellations,
 )
 
 
@@ -110,7 +109,7 @@ def create_masks(
 
 
 @task
-def merge_to_timeseries(waterbody: WaterBody, mask: str, label:int) -> pd.DataFrame:
+def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
     # oxeo-water merge_masks wants constellation as a parameter
@@ -188,12 +187,24 @@ def dynamic_cluster(**kwargs):
     n_workers = prefect.context.parameters["n_workers"]
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
+    gpu = prefect.context.parameters["gpu_per_worker"]
+    container_config = {
+        "resources": {
+            "limits": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
+            "requests": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
+        }
+    }
     pod_spec = make_pod_spec(
         image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
-        memory_limit=memory,
-        memory_request=memory,
-        cpu_limit=cpu,
-        cpu_request=cpu,
+        extra_container_config=container_config,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")
     return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
@@ -225,6 +236,7 @@ with Flow(
     flow.add_task(Parameter("n_workers", default=2))
     flow.add_task(Parameter("memory_per_worker", default="32G"))
     flow.add_task(Parameter("cpu_per_worker", default=8))
+    flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
     model_name = Parameter(name="model_name", default="pekel")
