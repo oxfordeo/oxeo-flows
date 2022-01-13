@@ -181,21 +181,25 @@ def log_to_bq(
 
 
 def dynamic_cluster(**kwargs):
+    logger = prefect.context.get("logger")
     n_workers = prefect.context.parameters["n_workers"]
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
+    if gpu > 0:
+        logger.warning("GPU is greater than 0 but is not supported by Autopilot.")
+        raise
     container_config = {
         "resources": {
             "limits": {
                 "cpu": cpu,
                 "memory": memory,
-                "nvidia.com/gpu": gpu,
+                # "nvidia.com/gpu": gpu, # not supported
             },
             "requests": {
                 "cpu": cpu,
                 "memory": memory,
-                "nvidia.com/gpu": gpu,
+                # "nvidia.com/gpu": gpu, # not supported
             },
         }
     }
