@@ -62,14 +62,11 @@ def create_masks(
         masks = []
         step = 8
         for i in range(0, shape[0], step):
-            sample = load_tile(
+            revisit_masks = predictor.predict(
                 fs.get_mapper,
                 path,
                 revisit=slice(i, i + step),
                 bands=bands,
-            )
-            revisit_masks = predictor.predict(
-                sample,
                 target_size=target_size,
             )
             masks.append(revisit_masks)
