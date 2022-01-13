@@ -254,7 +254,7 @@ with Flow(
     )
     timeseries_label = Parameter(name="timeseries_label", default=1)
 
-    cnn_batch_size = Parameter(name="cnn_batch_size", sdefault=16)
+    cnn_batch_size = Parameter(name="cnn_batch_size", default=16)
     cnn_revisit_chunk_size = Parameter(name="cnn_revisit_chunk_size", default=2)
 
     # rename the Flow run to reflect the parameters
