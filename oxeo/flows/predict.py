@@ -57,6 +57,7 @@ def create_masks(
         masks = []
         step = 8
         for i in range(0, shape[0], step):
+            logger.info(f"creating mask for {path.path}, revistits {i} to {i + step}")
             revisit_masks = predictor.predict(
                 fs.get_mapper,
                 path,
