@@ -29,12 +29,7 @@ from oxeo.flows.utils import (
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import (
-    TilePath,
-    WaterBody,
-    load_tile,
-    merge_masks_all_constellations,
-)
+from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
 @task
@@ -204,7 +199,7 @@ def dynamic_cluster(**kwargs):
         }
     }
     pod_spec = make_pod_spec(
-        image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
+        image=cfg.docker_oxeo_flows,
         extra_container_config=container_config,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")
