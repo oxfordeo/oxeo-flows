@@ -46,6 +46,8 @@ def create_masks(
     ckpt_path: str,
     target_size: int,
     bands: List[str],
+    cnn_batch_size: int,
+    cnn_revisit_chunk_size: int,
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
@@ -56,17 +58,18 @@ def create_masks(
     constellation = path.constellation
 
     if "cnn" in model_name:
-        predictor = model_factory(model_name).predictor(ckpt_path=ckpt_path, fs=fs)
+        predictor = model_factory(model_name).predictor(
+            ckpt_path=ckpt_path, fs=fs, batch_size=cnn_batch_size
+        )
         # get shape to know how many revisits we have
         shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
         masks = []
-        step = 8
-        for i in range(0, shape[0], step):
-            logger.info(f"creating mask for {path.path}, revistits {i} to {i + step}")
+        for i in range(0, shape[0], cnn_revisit_chunk_size):
+            logger.info(f"creating mask for {path.path}, revistits {i} to {i + cnn_revisit_chunk_size}")
             revisit_masks = predictor.predict(
                 fs.get_mapper,
                 path,
-                revisit=slice(i, i + step),
+                revisit=slice(i, i + cnn_revisit_chunk_size),
                 bands=bands,
                 target_size=target_size,
             )
@@ -187,6 +190,7 @@ def dynamic_cluster(**kwargs):
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
+
     if gpu > 0:
         logger.warning("GPU is greater than 0 but is not supported by Autopilot.")
         raise
@@ -256,6 +260,9 @@ with Flow(
     )
     timeseries_label = Parameter(name="timeseries_label", default=1)
 
+    cnn_batch_size = Parameter(name="cnn_batch_size", sdefault=16)
+    cnn_revisit_chunk_size = Parameter(name="cnn_revisit_chunk_size", default=2)
+
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list)
@@ -279,6 +286,8 @@ with Flow(
         ckpt_path=unmapped(ckpt_path),
         target_size=unmapped(target_size),
         bands=unmapped(bands),
+        cnn_batch_size=unmapped(cnn_batch_size),
+        cnn_revisit_chunk_size=unmapped(cnn_revisit_chunk_size),
     )
 
     # now instead of mapping across all paths, we map across
