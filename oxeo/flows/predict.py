@@ -29,12 +29,7 @@ from oxeo.flows.utils import (
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import (
-    TilePath,
-    WaterBody,
-    load_tile,
-    merge_masks_all_constellations,
-)
+from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
 @task
@@ -64,8 +59,14 @@ def create_masks(
         # get shape to know how many revisits we have
         shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
         masks = []
+<<<<<<< HEAD
         for i in range(0, shape[0], cnn_revisit_chunk_size):
             logger.info(f"creating mask for {path.path}, revistits {i} to {i + cnn_revisit_chunk_size}")
+=======
+        step = 8
+        for i in range(0, shape[0], step):
+            logger.info(f"creating mask for {path.path}, revistits {i} to {i + step}")
+>>>>>>> origin/main
             revisit_masks = predictor.predict(
                 fs.get_mapper,
                 path,
@@ -190,7 +191,10 @@ def dynamic_cluster(**kwargs):
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
     if gpu > 0:
         logger.warning("GPU is greater than 0 but is not supported by Autopilot.")
         raise
@@ -209,7 +213,7 @@ def dynamic_cluster(**kwargs):
         }
     }
     pod_spec = make_pod_spec(
-        image="eu.gcr.io/oxeo-main/oxeo-flows:latest",
+        image=cfg.docker_oxeo_flows,
         extra_container_config=container_config,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")

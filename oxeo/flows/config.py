@@ -3,6 +3,7 @@ repo_name = "oxfordeo/oxeo-flows"
 prefect_secret_github_token = "GITHUB"
 default_gcp_token = "token.json"
 docker_oxeo_flows = "eu.gcr.io/oxeo-main/oxeo-flows:latest"
+docker_oxeo_flows_gpu = "eu.gcr.io/oxeo-main/oxeo-flows-gpu:latest"
 
 dask_gcp_zone = "europe-west4-a"
 dask_projectid = "oxeo-main"
