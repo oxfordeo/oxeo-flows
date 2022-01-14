@@ -59,8 +59,11 @@ def create_masks(
         # get shape to know how many revisits we have
         shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
         masks = []
+        logger.info(f"Starting {path.path} prediction on {shape[0]} revisits")
         for i in range(0, shape[0], cnn_revisit_chunk_size):
-            logger.info(f"creating mask for {path.path}, revistits {i} to {i + cnn_revisit_chunk_size}")
+            logger.info(
+                f"{path.path}: predicting masks {i}-{i + cnn_revisit_chunk_size} out of {shape[0]}"
+            )
             revisit_masks = predictor.predict(
                 fs.get_mapper,
                 path,
