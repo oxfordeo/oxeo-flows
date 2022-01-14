@@ -60,11 +60,11 @@ def create_masks(
         shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
         masks = []
         logger.info(
-            f"Starting {path.path} prediction on constellation {constellation} with {shape[0]} revisits"
+            f"Starting {path.path} prediction with {shape[0]} revisits"
         )
         for i in range(0, shape[0], cnn_revisit_chunk_size):
             logger.info(
-                f"{path.path}-{constellation}: predicting masks {i}-{i + cnn_revisit_chunk_size} out of {shape[0]}"
+                f"{path.path}: predicting masks {i}-{i + cnn_revisit_chunk_size} out of {shape[0]}"
             )
             revisit_masks = predictor.predict(
                 fs.get_mapper,
