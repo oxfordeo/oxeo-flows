@@ -42,52 +42,33 @@ def create_masks(
     target_size: int,
     bands: List[str],
     cnn_batch_size: int,
-    cnn_revisit_chunk_size: int,
+    revisit_chunk_size: int,
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
-
-    constellation = path.constellation
-
-    if "cnn" in model_name:
-        predictor = model_factory(model_name).predictor(
-            ckpt_path=ckpt_path, fs=fs, batch_size=cnn_batch_size
+    predictor = model_factory(model_name).predictor(
+        ckpt_path=ckpt_path,
+        fs=fs,
+        batch_size=cnn_batch_size,
+        bands=bands,
+        target_size=target_size,
+    )
+    # get shape to know how many revisits we have
+    shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
+    masks = []
+    for i in range(0, shape[0], revisit_chunk_size):
+        logger.info(
+            f"creating mask for {path.path}, revisits {i} to {i + revisit_chunk_size}"
         )
-        # get shape to know how many revisits we have
-        shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
-        masks = []
-        for i in range(0, shape[0], cnn_revisit_chunk_size):
-            logger.info(f"creating mask for {path.path}, revistits {i} to {i + cnn_revisit_chunk_size}")
-            revisit_masks = predictor.predict(
-                fs.get_mapper,
-                path,
-                revisit=slice(i, i + cnn_revisit_chunk_size),
-                bands=bands,
-                target_size=target_size,
-            )
-            masks.append(revisit_masks)
-        masks = np.vstack(masks)
-
-    else:
-        predictor = model_factory(model_name).predictor()
-
-        try:
-            data_path = f"{path.data_path}"
-            logger.info(f"Getting arr from {data_path=}")
-            mapper = fs.get_mapper(data_path)
-            arr = zarr.open(mapper, "r")
-        except (Exception, PathNotFoundError) as e:
-            logger.warning(f"Couldn't load zarr at {data_path=} error {e}, ignoring")
-            return
-
-        masks = predictor.predict(
-            arr,
-            constellation=constellation,
+        revisit_masks = predictor.predict(
+            path,
+            revisit=slice(i, i + revisit_chunk_size),
         )
-        masks = np.array(masks)
+        masks.append(revisit_masks)
+    masks = np.vstack(masks)
 
     mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
@@ -255,7 +236,7 @@ with Flow(
     timeseries_label = Parameter(name="timeseries_label", default=1)
 
     cnn_batch_size = Parameter(name="cnn_batch_size", default=16)
-    cnn_revisit_chunk_size = Parameter(name="cnn_revisit_chunk_size", default=2)
+    revisit_chunk_size = Parameter(name="revisit_chunk_size", default=2)
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
@@ -281,7 +262,7 @@ with Flow(
         target_size=unmapped(target_size),
         bands=unmapped(bands),
         cnn_batch_size=unmapped(cnn_batch_size),
-        cnn_revisit_chunk_size=unmapped(cnn_revisit_chunk_size),
+        revisit_chunk_size=unmapped(revisit_chunk_size),
     )
 
     # now instead of mapping across all paths, we map across
