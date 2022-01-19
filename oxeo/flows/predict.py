@@ -107,6 +107,7 @@ def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataF
 
 @task
 def log_to_bq(
+    name: str,
     df: pd.DataFrame,
     waterbody: WaterBody,
     model_name: str,
@@ -118,8 +119,8 @@ def log_to_bq(
 
     logger.info("Prepare ts dataframe and model_run dict")
     area_id = waterbody.area_id
-    run_id = f"{area_id}-{model_name}-{str(uuid4())[:8]}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
+    run_id = f"{area_id}-{model_name}-{name}-{str(uuid4())[:8]}"
     df = df.assign(
         area_id=area_id,
         run_id=run_id,
@@ -220,6 +221,7 @@ with Flow(
     flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
+    run_name = Parameter(name="run_name", default="noname")
     model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
@@ -275,6 +277,7 @@ with Flow(
         upstream_tasks=[unmapped(masks)],
     )
     log_to_bq.map(
+        name=unmapped(run_name),
         df=ts_dfs,
         waterbody=waterbodies,
         model_name=unmapped(model_name),
