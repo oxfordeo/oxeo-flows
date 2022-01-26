@@ -175,6 +175,7 @@ def preparer(
 
 @task
 def deployer(
+    job_id: str,
     project: str,
     user_id: str,
     credentials: Path,
@@ -187,6 +188,7 @@ def deployer(
 
     topic = f"projects/{project}/topics/{'-'.join([user_id, 'stacextractor'])}"
     job_id = deploy_tasks(
+        job_id=job_id,
         credentials=credentials,
         extraction_tasks=extraction_tasks,
         storage_path=storage_path,
@@ -367,6 +369,7 @@ with Flow(
         overwrite,
     )
     job_id = deployer(
+        run_id,
         project,
         user_id,
         credentials,
