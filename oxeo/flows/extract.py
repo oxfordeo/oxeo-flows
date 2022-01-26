@@ -15,6 +15,7 @@ from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.deployer import deploy_tasks
 from satextractor.models import ExtractionTask, Tile
+from satextractor.plugins import copy_mtl_files
 from satextractor.preparer.gcp_preparer import gcp_prepare_archive
 from satextractor.scheduler import create_tasks_by_splits
 from satextractor.stac import gcp_region_to_item_collection
@@ -97,6 +98,8 @@ def stac(
 ) -> pystac.ItemCollection:
     logger = prefect.context.get("logger")
     logger.info("Converting data to STAC")
+    if start_date > end_date:
+        raise ValueError("Start date must be before end date!")
     item_collection = gcp_region_to_item_collection(
         credentials=credentials,
         region=region,
@@ -191,6 +194,17 @@ def deployer(
         topic=topic,
     )
     return job_id
+
+
+@task
+def copy_metadata(
+    credentials: str,
+    extraction_tasks: List[ExtractionTask],
+    storage_path: str,
+) -> None:
+    logger = prefect.context.get("logger")
+    logger.info("Copying MTL metadata files for any landsat data")
+    copy_mtl_files(credentials, extraction_tasks, storage_path)
 
 
 @task
@@ -292,7 +306,7 @@ storage = GitHub(
 )
 run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
-    cpu_request=8, 
+    cpu_request=8,
     memory_request="32Gi",
 )
 with Flow(
@@ -361,6 +375,7 @@ with Flow(
         extraction_tasks,
         upstream_tasks=[built, prepped],
     )
+    copy_metadata(credentials, extraction_tasks, storage_path)
 
     complete = check_deploy_completion(project, user_id, job_id, extraction_tasks)
 

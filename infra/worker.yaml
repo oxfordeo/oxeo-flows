@@ -1,0 +1,15 @@
+kind: Pod
+spec:
+  restartPolicy: Never
+  containers:
+  - image: "eu.gcr.io/oxeo-main/oxeo-flows:latest"
+    imagePullPolicy: IfNotPresent
+    args: [dask-worker, --nthreads, '1', --no-dashboard, --memory-limit, 2GB, --death-timeout, '60']
+    name: dask
+    resources:
+      limits:
+        cpu: 1
+        memory: 2G
+      requests:
+        cpu: 1
+        memory: 2G

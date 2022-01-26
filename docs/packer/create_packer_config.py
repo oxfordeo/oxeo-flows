@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 cloud_config = Path("cloud_config.yaml").read_text()
 

@@ -4,38 +4,21 @@ Parallelism within a Flow run can use a `LocalDaskExecutor`, which will just sca
 For larger parallelism, we need to use some kind of distributed Dask infrastructure.
 There are several ways of achieving this, described below.
 
-**NB**: Since the Prefect Agent is now running in GKE, which its on top of GCE (unlike Vertex), we don't need the VPC Peering stuff any more. Everything runs on the `default` network, and all that is necessary is to open ingress on `10.0.0.0/8` so that the GKE Agent can talk to the GCE Scheduler and Workers.
-
-## VPC Peering
-All of these solutions rely on Vertex talking to resources in Google Compute.
-As Vertex is not automatically part of the Compute VPC, it needs to be peered and/or the VPC must allow public ingress on the Dask ports.
-
-The solution currently used is as follows:
-1. Create a new VPC network (called `dask`) with one subnetwork on europe-west4 (also called `dask`).
-2. Add Firewall rules for *this network* [as follows](https://cloudprovider.dask.org/en/stable/gcp.html):
-```
-egress 0.0.0.0/0 all ports
-ingress 10.0.0.0/8 all ports (internal communication)
-ingress 0.0.0.0/0 on 8786-8787 (external accessibility to scheduler)
-```
-4. [Set up a VPC peering](https://cloud.google.com/vertex-ai/docs/general/vpc-peering).
-5. Then when creating Vertex instances, specify that they should connect to the `dask` network/subnetwork.
-
-This is still relying on the public ingress, which shouldn't be necessary, as the networks are peered.
-`dask-cloudprovider` (and probably the others below have similar) has a `public_ingress=False` option, which will then tell the client (the Vertex instance) to use the internal IP address.
-However, this option is not exposed in Prefect, so we have to rely on the public IP.
-This is potentially not ideal from a security POV (not important for ephemeral instances, and limited to the `dask` network), and has [cost implications](https://cloud.google.com/vpc/network-pricing).
-There is some [discussion](https://github.com/dask/dask-cloudprovider/issues/161) [around](https://github.com/dask/dask-cloudprovider/issues/215) [this](https://github.com/dask/dask-cloudprovider/issues/229) issue.
 
 ## Local DaskExecutor
 By setting `executor=DaskExecutor()` with no arguments, it will just parallelise on the local machine.
+
+## Dask-Kubernetes KubeCluster
+This is what we're currently using.
+[KubeCluster](https://kubernetes.dask.org/en/latest/kubecluster.html) creates ephemeral Dask clusters in a Kubernetes cluster.
+Need to ensure that [additional packages are installed](https://github.com/dask/dask-kubernetes/issues/329#issuecomment-989697205) to get it to work, and be careful that the Docker image being used fo r the workers has the same versions.
 
 ## Dask Cloudprovider
 Using [dask-cloud-provider](https://cloudprovider.dask.org/en/latest/gcp.html).
 This is the default mechanism for Prefect to spin up ephemeral clusters for each Flow run, using `GCPCluster`.
 This spins up bare GCP Compute instances with an OS image and then runs a Docker image from there.
 
-To make that work, had to create a Packer image that runs the `oxeo-flows` Docker image.
+To make that work, had to create a [Packer](https://cloudprovider.dask.org/en/stable/packer.html) image that runs the `oxeo-flows` Docker image.
 See [the config](./packer/packer.json) and build a new image by running `packer build packer.json` and get the packer image ID from the output.
 This name must be specified in the `GCPCluster` config.
 
@@ -96,6 +79,24 @@ Then to use the cluster from Prefect, get the external IP and port for the LoadB
 executor=DaskExecutor(address="tbp://<ip>:<port>")
 ```
 
-## Dask-Kubernetes KubeCluster
-[KubeCluster](https://kubernetes.dask.org/en/latest/kubecluster.html) provides a long-lived Dask cluster, that also scales. Make sure to `pip install dask-kubernetes==2021.3.1` as there is an [issue](https://github.com/dask/dask-kubernetes/issues/376) with the latest version.
-Haven't quite got this working, but not sure we need it yet!
+## VPC Peering
+**NB**: Since the Prefect Agent is now running in GKE, which sits on top of GCE (unlike Vertex), we don't need the VPC Peering stuff any more. Everything runs on the `default` network, and all that is necessary is to open ingress on `10.0.0.0/8` so that the GKE Agent can talk to the GCE Scheduler and Workers.
+All of these solutions rely on Vertex talking to resources in Google Compute.
+As Vertex is not automatically part of the Compute VPC, it needs to be peered and/or the VPC must allow public ingress on the Dask ports.
+
+The solution currently used is as follows:
+1. Create a new VPC network (called `dask`) with one subnetwork on europe-west4 (also called `dask`).
+2. Add Firewall rules for *this network* [as follows](https://cloudprovider.dask.org/en/stable/gcp.html):
+```
+egress 0.0.0.0/0 all ports
+ingress 10.0.0.0/8 all ports (internal communication)
+ingress 0.0.0.0/0 on 8786-8787 (external accessibility to scheduler)
+```
+4. [Set up a VPC peering](https://cloud.google.com/vertex-ai/docs/general/vpc-peering).
+5. Then when creating Vertex instances, specify that they should connect to the `dask` network/subnetwork.
+
+This is still relying on the public ingress, which shouldn't be necessary, as the networks are peered.
+`dask-cloudprovider` (and probably the others below have similar) has a `public_ingress=False` option, which will then tell the client (the Vertex instance) to use the internal IP address.
+However, this option is not exposed in Prefect, so we have to rely on the public IP.
+This is potentially not ideal from a security POV (not important for ephemeral instances, and limited to the `dask` network), and has [cost implications](https://cloud.google.com/vpc/network-pricing).
+There is some [discussion](https://github.com/dask/dask-cloudprovider/issues/161) [around](https://github.com/dask/dask-cloudprovider/issues/215) [this](https://github.com/dask/dask-cloudprovider/issues/229) issue.

@@ -1,6 +1,6 @@
 # oxeo-flows
 [![prefect-register](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/prefect-register.yml)
-[![build-deploy](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-deploy.yml)
+[![build-images](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-images.yml/badge.svg)](https://github.com/oxfordeo/oxeo-flows/actions/workflows/build-images.yml)
 
 Repository for managing pipelines etc, using Prefect for orchestration.
 
@@ -26,11 +26,10 @@ Something like what is described [here](https://github.com/PrefectHQ/prefect/iss
 │       ├── predict.py
 │       ├── template.py  # TEMPLATE FLOW FILE HAVE A LOOK!
 │       └── utils.py
-├── packer               # Packer creates the Dask OS image
+├── infra                # Docker, Kubernetes and Dask stuff
 │   └── ...
 ├── docs                 # useful docs and commands
 │   └── ...
-├── helm-chart-dask.yaml # Dask Helm chart config (not using)
 └── ...
 ```
 
