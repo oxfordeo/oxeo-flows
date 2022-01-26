@@ -28,9 +28,9 @@ def parse_constellations(constellations: Union[str, list]) -> List[str]:
         else:
             constellations = [constellations]
 
-    assert all(
+    assert len(constellations) > 0 and all(
         c in all_constellations for c in constellations
-    ), f"All constellations must be in {all_constellations}, but passed {constellations}"
+    ), f"All constellations must be in {all_constellations}, but passed {constellations} with."
     return constellations
 
 
