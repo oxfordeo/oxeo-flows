@@ -43,6 +43,8 @@ def create_masks(
     bands: List[str],
     cnn_batch_size: int,
     revisit_chunk_size: int,
+    start_date: str,
+    end_date: str,
 ) -> None:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
@@ -56,16 +58,30 @@ def create_masks(
         bands=bands,
         target_size=target_size,
     )
-    # get shape to know how many revisits we have
-    shape = zarr.open(fs.get_mapper(path.data_path), "r").shape
+    
+    # get revisits shape from timestamps    
+    timestamps = zarr.open(fs.get_mapper(path.timestamps_path),"r")[:]
+    timestamps = np.array(
+        [
+            np.datetime64(datetime.fromisoformat(el))
+            for el in timestamps
+        ],
+    )
+    
+    sdt = datetime.strptime(start_date,'%Y-%m-%d')
+    edt = datetime.strptime(end_date,'%Y-%m-%d')
+    
+    min_idx = np.where((timestamps>=np.datetime64(sdt))&(timestamps<=np.datetime64(edt)))[0].min()
+    max_idx = np.where((timestamps>=np.datetime64(sdt))&(timestamps<=np.datetime64(edt)))[0].max() + 1
+    
     masks = []
-    for i in range(0, shape[0], revisit_chunk_size):
+    for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
-            f"creating mask for {path.path}, revisits {i} to {i + revisit_chunk_size}"
+            f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)}"
         )
         revisit_masks = predictor.predict(
             path,
-            revisit=slice(i, i + revisit_chunk_size),
+            revisit=slice(i, min(i + revisit_chunk_size,max_idx)),
         )
         masks.append(revisit_masks)
     masks = np.vstack(masks)
@@ -73,14 +89,18 @@ def create_masks(
     mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
     mask_mapper = fs.get_mapper(mask_path)
+    
+    # open as 'append' -> create if doesn't exist
     mask_arr = zarr.open_array(
         mask_mapper,
-        "w",
-        shape=masks.shape,
+        "a",
+        shape=(timestamps.shape[0],*masks.shape[1:]),
         chunks=(1, 1000, 1000),
         dtype=np.uint8,
     )
-    mask_arr[:] = masks
+    
+    # write data to archive
+    mask_arr[min_idx:max_idx,...] = masks
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
     return
 
@@ -228,6 +248,8 @@ with Flow(
     project = Parameter(name="project", default="oxeo-main")
     bucket = Parameter(name="bucket", default="oxeo-water")
     root_dir = Parameter(name="root_dir", default="prod")
+    start_date = Parameter(name="start_date", default="1984-01-01")
+    end_date = Parameter(name="end_date", default="2100-02-01")
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
     ckpt_path = Parameter(name="cktp_path", default="gs://oxeo-models/semseg/last.ckpt")
@@ -265,6 +287,8 @@ with Flow(
         bands=unmapped(bands),
         cnn_batch_size=unmapped(cnn_batch_size),
         revisit_chunk_size=unmapped(revisit_chunk_size),
+        start_date=unmapped(start_date),
+        end_date=unmapped(end_date),
     )
 
     # now instead of mapping across all paths, we map across
