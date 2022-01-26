@@ -155,6 +155,7 @@ def preparer(
     chunk_size: int,
     tiles: List[Tile],
     extraction_tasks: List[ExtractionTask],
+    overwrite: bool,
 ) -> None:
     logger = prefect.context.get("logger")
     logger.info("Prepare Cloud Storage bucket")
@@ -165,6 +166,7 @@ def preparer(
         constellations=constellations,
         storage_root=storage_path,
         patch_size=bbox_size,
+        overwrite=overwrite,
         chunk_size=chunk_size,
         n_jobs=-1,
         verbose=0,
@@ -330,7 +332,8 @@ with Flow(
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
-    constellations = Parameter(name="constellations", default=["sentinel-2"])
+    constellations = Parameter(name="constellations", default=["landsat-5","landsat-7","landsat-8","sentinel-2"])
+    overwrite = Parameter(name="overwrite", default=False)
 
     bbox_size = Parameter(name="bbox_size", default=10000)
     split_m = Parameter(name="split_m", default=100000)
@@ -361,6 +364,7 @@ with Flow(
         chunk_size,
         tiles,
         extraction_tasks,
+        overwrite,
     )
     job_id = deployer(
         project,
