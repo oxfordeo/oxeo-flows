@@ -14,7 +14,6 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from zarr.errors import PathNotFoundError
 
 import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
@@ -50,6 +49,13 @@ def create_masks(
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
+    gpu = prefect.context.parameters["gpu_per_worker"]
+    if gpu > 0:
+        import torch
+
+        cuda = torch.cuda.is_available()
+        logger.info(f"CUDA available: {cuda}")
+
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     predictor = model_factory(model_name).predictor(
         ckpt_path=ckpt_path,
@@ -58,22 +64,26 @@ def create_masks(
         bands=bands,
         target_size=target_size,
     )
-    
-    # get revisits shape from timestamps    
-    timestamps = zarr.open(fs.get_mapper(path.timestamps_path),"r")[:]
+
+    # get revisits shape from timestamps
+    timestamps = zarr.open(fs.get_mapper(path.timestamps_path), "r")[:]
     timestamps = np.array(
-        [
-            np.datetime64(datetime.fromisoformat(el))
-            for el in timestamps
-        ],
+        [np.datetime64(datetime.fromisoformat(el)) for el in timestamps],
     )
-    
-    sdt = datetime.strptime(start_date,'%Y-%m-%d')
-    edt = datetime.strptime(end_date,'%Y-%m-%d')
-    
-    min_idx = np.where((timestamps>=np.datetime64(sdt))&(timestamps<=np.datetime64(edt)))[0].min()
-    max_idx = np.where((timestamps>=np.datetime64(sdt))&(timestamps<=np.datetime64(edt)))[0].max() + 1
-    
+
+    sdt = datetime.strptime(start_date, "%Y-%m-%d")
+    edt = datetime.strptime(end_date, "%Y-%m-%d")
+
+    min_idx = np.where(
+        (timestamps >= np.datetime64(sdt)) & (timestamps <= np.datetime64(edt))
+    )[0].min()
+    max_idx = (
+        np.where(
+            (timestamps >= np.datetime64(sdt)) & (timestamps <= np.datetime64(edt))
+        )[0].max()
+        + 1
+    )
+
     masks = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
@@ -81,7 +91,7 @@ def create_masks(
         )
         revisit_masks = predictor.predict(
             path,
-            revisit=slice(i, min(i + revisit_chunk_size,max_idx)),
+            revisit=slice(i, min(i + revisit_chunk_size, max_idx)),
         )
         masks.append(revisit_masks)
     masks = np.vstack(masks)
@@ -89,18 +99,18 @@ def create_masks(
     mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
     mask_mapper = fs.get_mapper(mask_path)
-    
+
     # open as 'append' -> create if doesn't exist
     mask_arr = zarr.open_array(
         mask_mapper,
         "a",
-        shape=(timestamps.shape[0],*masks.shape[1:]),
+        shape=(timestamps.shape[0], *masks.shape[1:]),
         chunks=(1, 1000, 1000),
         dtype=np.uint8,
     )
-    
+
     # write data to archive
-    mask_arr[min_idx:max_idx,...] = masks
+    mask_arr[min_idx:max_idx, ...] = masks
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
     return
 
@@ -188,24 +198,39 @@ def dynamic_cluster(**kwargs):
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
     if gpu > 0:
+        # Even setting gpu: 0 breaks on Autopilot
         logger.warning("GPU is greater than 0 but is not supported by Autopilot.")
-        raise
-    container_config = {
-        "resources": {
-            "limits": {
-                "cpu": cpu,
-                "memory": memory,
-                # "nvidia.com/gpu": gpu, # not supported
-            },
-            "requests": {
-                "cpu": cpu,
-                "memory": memory,
-                # "nvidia.com/gpu": gpu, # not supported
-            },
+        image = cfg.docker_oxeo_flows_gpu
+        container_config = {
+            "resources": {
+                "limits": {
+                    "cpu": cpu,
+                    "memory": memory,
+                    "nvidia.com/gpu": gpu,
+                },
+                "requests": {
+                    "cpu": cpu,
+                    "memory": memory,
+                    "nvidia.com/gpu": gpu,
+                },
+            }
         }
-    }
+    else:
+        image = cfg.docker_oxeo_flows
+        container_config = {
+            "resources": {
+                "limits": {
+                    "cpu": cpu,
+                    "memory": memory,
+                },
+                "requests": {
+                    "cpu": cpu,
+                    "memory": memory,
+                },
+            }
+        }
     pod_spec = make_pod_spec(
-        image=cfg.docker_oxeo_flows,
+        image=image,
         extra_container_config=container_config,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")

@@ -31,7 +31,7 @@ spec:
         - name: IMAGE_PULL_SECRETS
           value: ''
         - name: PREFECT__CLOUD__AGENT__LABELS
-          value: '[]'
+          value: ['gpu']
         - name: JOB_MEM_REQUEST
           value: ''
         - name: JOB_MEM_LIMIT
