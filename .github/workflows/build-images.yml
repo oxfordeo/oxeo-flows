@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  cloudbuild:
+  cloudbuild-GPU:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -29,3 +29,20 @@ jobs:
       - name: Submit to Cloud Build
         run: |
           gcloud builds submit . --config=infra/cloudbuild-oxeo-flows.yaml
+
+  cloudbuild-CPU:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          project_id: oxeo-main
+          service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
+          export_default_credentials: true
+
+      - name: Submit to Cloud Build
+        run: |
+          gcloud builds submit . --config=infra/cloudbuild-oxeo-flows-gpu.yaml
