@@ -101,10 +101,15 @@ def create_masks(
     mask_mapper = fs.get_mapper(mask_path)
 
     # open as 'append' -> create if doesn't exist
+    time_shape = timestamps.shape[0]
+    geo_shape = masks.shape[1:]
+    output_shape = (time_shape, *geo_shape)
+    logger.info(f"Output zarr shape: {output_shape}")
+
     mask_arr = zarr.open_array(
         mask_mapper,
         "a",
-        shape=(timestamps.shape[0], *masks.shape[1:]),
+        shape=output_shape,
         chunks=(1, 1000, 1000),
         dtype=np.uint8,
     )
