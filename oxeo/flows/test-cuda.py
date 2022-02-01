@@ -16,6 +16,12 @@ def check_cuda() -> None:
     cuda = torch.cuda.is_available()
     logger.info(f"CUDA available: {cuda}")
 
+    import zarr
+    import numpy as np
+
+    m = zarr.open_array("", "a", shape=(1, 1), chunks=(1, 1), dtype=np.uint8)
+    logger.info(f"Zarr ran fine: {m}")
+
 
 def dynamic_cluster(**kwargs):
     n_workers = 1
@@ -62,4 +68,4 @@ with Flow(
     storage=storage,
     run_config=run_config,
 ) as flow:
-    check_cuda()
+    done = check_cuda()
