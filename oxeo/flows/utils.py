@@ -19,6 +19,8 @@ from oxeo.water.models.utils import TilePath, WaterBody
 
 @task
 def parse_constellations(constellations: Union[str, list]) -> List[str]:
+    logger = prefect.context.get("logger")
+
     all_constellations = list(BAND_INFO.keys()) + ["sentinel-1"]
     if isinstance(constellations, str):
         if constellations == "all":
@@ -28,9 +30,10 @@ def parse_constellations(constellations: Union[str, list]) -> List[str]:
         else:
             constellations = [constellations]
 
-    assert len(constellations) > 0 and all(
-        c in all_constellations for c in constellations
-    ), f"All constellations must be in {all_constellations}, but passed {constellations} with."
+    logger.info(
+        f"Chosen constellations: {constellations}. All possible constellations: {all_constellations}."
+    )
+
     return constellations
 
 
