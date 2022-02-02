@@ -13,7 +13,7 @@ from oxeo.flows.utils import rename_flow_run
 
 # More task parameters at
 # https://docs.prefect.io/api/latest/core/task.html
-@task(max_retries=1, retry_delay=timedelta(seconds=10))
+@task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
 def task_one(
     a_word: str,
     # Make sure to provide return type annotations
@@ -32,7 +32,7 @@ def task_one(
     return numbers
 
 
-@task
+@task(log_stdout=True)
 def task_two(
     number: int,
 ) -> None:

@@ -31,7 +31,7 @@ from oxeo.water.models import model_factory
 from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
-@task
+@task(log_stdout=True)
 def create_masks(
     path: TilePath,
     model_name: str,
@@ -120,7 +120,7 @@ def create_masks(
     return
 
 
-@task
+@task(log_stdout=True)
 def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataFrame:
     logger = prefect.context.get("logger")
     # TODO Fix this
@@ -140,7 +140,7 @@ def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataF
     return df
 
 
-@task
+@task(log_stdout=True)
 def log_to_bq(
     name: str,
     df: pd.DataFrame,

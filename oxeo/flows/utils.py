@@ -17,7 +17,7 @@ import oxeo.flows.config as cfg
 from oxeo.water.models.utils import TilePath, WaterBody
 
 
-@task
+@task(log_stdout=True)
 def parse_constellations(constellations: Union[str, list]) -> List[str]:
     logger = prefect.context.get("logger")
 
@@ -37,7 +37,7 @@ def parse_constellations(constellations: Union[str, list]) -> List[str]:
     return constellations
 
 
-@task
+@task(log_stdout=True)
 def parse_water_list(water_list):
     # split string of the form: 1234,8765
     if isinstance(water_list, str):
@@ -49,7 +49,7 @@ def parse_water_list(water_list):
     return water_list
 
 
-@task
+@task(log_stdout=True)
 def generate_run_id(
     water_list: List[int],
 ) -> str:
@@ -57,7 +57,7 @@ def generate_run_id(
     return f"lakes_{water}"
 
 
-@task(max_retries=0)
+@task(log_stdout=True, max_retries=0)
 def rename_flow_run(
     aoi_id: int,
 ) -> None:
@@ -68,7 +68,7 @@ def rename_flow_run(
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
-@task
+@task(log_stdout=True)
 def fetch_water_list(
     water_list: List[int],
     password: str,
@@ -89,7 +89,7 @@ def fetch_water_list(
     return data
 
 
-@task
+@task(log_stdout=True)
 def data2gdf(
     data: List[Tuple[int, str, str]],
 ) -> gpd.GeoDataFrame:
@@ -100,7 +100,7 @@ def data2gdf(
     return gdf
 
 
-@task
+@task(log_stdout=True)
 def gdf2geom(gdf):
     return gdf.unary_union
 
@@ -123,7 +123,7 @@ def get_tiles(
     return split_region_in_utm_tiles(region=geom, bbox_size=10000)
 
 
-@task
+@task(log_stdout=True)
 def get_all_paths(
     gdf: gpd.GeoDataFrame,
     bucket: str,
@@ -139,7 +139,7 @@ def get_all_paths(
     return all_tilepaths
 
 
-@task
+@task(log_stdout=True)
 def get_waterbodies(
     gdf: gpd.GeoDataFrame,
     bucket: str,

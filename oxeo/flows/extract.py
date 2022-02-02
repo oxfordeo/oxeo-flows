@@ -36,7 +36,7 @@ from oxeo.flows.utils import (
 from oxeo.water.models.utils import WaterBody
 
 
-@task
+@task(log_stdout=True)
 def get_storage_path(
     bucket: str,
     root_dir: str,
@@ -44,7 +44,7 @@ def get_storage_path(
     return f"gs://{bucket}/{root_dir}"
 
 
-@task
+@task(log_stdout=True)
 def build(
     project: str,
     gcp_region: str,
@@ -88,7 +88,7 @@ def build(
     return True
 
 
-@task
+@task(log_stdout=True)
 def stac(
     credentials: Path,
     start_date: str,
@@ -110,7 +110,7 @@ def stac(
     return item_collection
 
 
-@task
+@task(log_stdout=True)
 def tiler(
     bbox_size: int,
     region: Union[Polygon, MultiPolygon],
@@ -124,7 +124,7 @@ def tiler(
     return tiles
 
 
-@task
+@task(log_stdout=True)
 def scheduler(
     constellations: List[str],
     tiles: List[Tile],
@@ -146,7 +146,7 @@ def scheduler(
     return extraction_tasks
 
 
-@task
+@task(log_stdout=True)
 def preparer(
     credentials: Path,
     constellations: List[str],
@@ -173,7 +173,7 @@ def preparer(
     )
 
 
-@task
+@task(log_stdout=True)
 def deployer(
     job_id: str,
     project: str,
@@ -198,7 +198,7 @@ def deployer(
     return job_id
 
 
-@task
+@task(log_stdout=True)
 def copy_metadata(
     credentials: str,
     extraction_tasks: List[ExtractionTask],
@@ -209,7 +209,7 @@ def copy_metadata(
     copy_mtl_files(credentials, extraction_tasks, storage_path)
 
 
-@task
+@task(log_stdout=True)
 def check_deploy_completion(
     project: str,
     user_id: str,
@@ -253,7 +253,7 @@ def check_deploy_completion(
         time.sleep(sleep)
 
 
-@task
+@task(log_stdout=True)
 def log_to_bq(
     waterbody: WaterBody,
     start_date: str,
