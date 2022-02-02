@@ -197,43 +197,29 @@ def log_to_bq(
 
 
 def dynamic_cluster(**kwargs):
-    logger = prefect.context.get("logger")
     n_workers = prefect.context.parameters["n_workers"]
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
-    if gpu > 0:
-        # Even setting gpu: 0 breaks on Autopilot
-        logger.warning("GPU is greater than 0 but is not supported by Autopilot.")
-        image = cfg.docker_oxeo_flows_gpu
-        container_config = {
-            "resources": {
-                "limits": {
-                    "cpu": cpu,
-                    "memory": memory,
-                    "nvidia.com/gpu": gpu,
-                },
-                "requests": {
-                    "cpu": cpu,
-                    "memory": memory,
-                    "nvidia.com/gpu": gpu,
-                },
-            }
+
+    container_config = {
+        "resources": {
+            "limits": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
+            "requests": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
         }
-    else:
-        image = cfg.docker_oxeo_flows
-        container_config = {
-            "resources": {
-                "limits": {
-                    "cpu": cpu,
-                    "memory": memory,
-                },
-                "requests": {
-                    "cpu": cpu,
-                    "memory": memory,
-                },
-            }
-        }
+    }
+
+    # TODO: Always use GPU image
+    image = cfg.docker_oxeo_flows_gpu if gpu > 0 else cfg.docker_oxeo_flows
+
     pod_spec = make_pod_spec(
         image=image,
         extra_container_config=container_config,
