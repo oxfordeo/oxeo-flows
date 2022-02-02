@@ -196,11 +196,19 @@ def log_to_bq(
         )
 
 
+env = {"PREFECT__LOGGING__EXTRA_LOGGERS": '["oxeo.water"]'}
+
+
 def dynamic_cluster(**kwargs):
     n_workers = prefect.context.parameters["n_workers"]
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
+
+    logger = prefect.context.get("logger")
+    logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
+    if gpu > 0:
+        logger.warning("Creating GPU cluster!")
 
     container_config = {
         "resources": {
@@ -223,6 +231,7 @@ def dynamic_cluster(**kwargs):
     pod_spec = make_pod_spec(
         image=image,
         extra_container_config=container_config,
+        env=env,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")
     return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
@@ -240,7 +249,7 @@ storage = GitHub(
 )
 run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
-    env={"PREFECT__LOGGING__EXTRA_LOGGERS": '["water"]'},
+    env=env,
 )
 with Flow(
     "predict",
