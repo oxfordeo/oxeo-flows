@@ -240,6 +240,7 @@ storage = GitHub(
 )
 run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
+    env={"PREFECT__LOGGING__EXTRA_LOGGERS": '["water"]'},
 )
 with Flow(
     "predict",
