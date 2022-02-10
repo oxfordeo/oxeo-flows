@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List
 
+import psutil
 from dask_kubernetes import KubeCluster, make_pod_spec
 import gcsfs
 import numpy as np
@@ -55,6 +56,9 @@ def create_masks(
     cuda = torch.cuda.is_available()
     num_gpus = torch.cuda.device_count()
     logger.info(f"CUDA available: {cuda=}, {num_gpus=}")
+
+    logger.info(f"{psutil.virtual_memory()=}")
+    logger.info(f"{psutil.cpu_count()=}")
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     logger.info("Got FS")
