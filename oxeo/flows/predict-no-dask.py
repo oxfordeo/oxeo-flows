@@ -58,7 +58,9 @@ def create_masks(
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     logger.info("Got FS")
-    predictor = model_factory(model_name).predictor(
+    model = model_factory(model_name)
+    logger.info("Got model")
+    predictor = model.predictor(
         ckpt_path=ckpt_path,
         fs=fs,
         batch_size=cnn_batch_size,
@@ -137,11 +139,9 @@ spec:
             requests:
               cpu: "15"
               memory: "55G"
-              nvidia.com/gpu: 1
             limits:
               cpu: "15"
               memory: "55G"
-              nvidia.com/gpu: 1
 """
 
 
@@ -149,7 +149,7 @@ def dynamic_cluster(**kwargs):
     n_workers = 1
     memory = "55G"
     cpu = 15
-    gpu = 1
+    gpu = 0
 
     logger = prefect.context.get("logger")
     logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
@@ -161,18 +161,16 @@ def dynamic_cluster(**kwargs):
             "limits": {
                 "cpu": cpu,
                 "memory": memory,
-                "nvidia.com/gpu": gpu,
             },
             "requests": {
                 "cpu": cpu,
                 "memory": memory,
-                "nvidia.com/gpu": gpu,
             },
         }
     }
 
     # TODO: Always use GPU image
-    image = cfg.docker_oxeo_flows_gpu
+    image = cfg.docker_oxeo_flows
 
     pod_spec = make_pod_spec(
         image=image,
@@ -195,7 +193,7 @@ storage = GitHub(
     access_token_secret=cfg.prefect_secret_github_token,
 )
 run_config = KubernetesRun(
-    image=cfg.docker_oxeo_flows_gpu,
+    image=cfg.docker_oxeo_flows,
     env=env,
     job_template=job_template,
 )
