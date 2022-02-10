@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import List
 
+from dask_kubernetes import KubeCluster, make_pod_spec
 import gcsfs
 import numpy as np
 import prefect
 import zarr
+from prefect.executors import DaskExecutor
 from prefect import Flow, Parameter, task, unmapped
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -55,6 +57,7 @@ def create_masks(
     logger.info(f"CUDA available: {cuda=}, {num_gpus=}")
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
+    logger.info("Got FS")
     predictor = model_factory(model_name).predictor(
         ckpt_path=ckpt_path,
         fs=fs,
@@ -141,6 +144,51 @@ spec:
               nvidia.com/gpu: 1
 """
 
+
+def dynamic_cluster(**kwargs):
+    n_workers = 1
+    memory = "55G"
+    cpu = 15
+    gpu = 1
+
+    logger = prefect.context.get("logger")
+    logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
+    if gpu > 0:
+        logger.warning("Creating GPU cluster!")
+
+    container_config = {
+        "resources": {
+            "limits": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
+            "requests": {
+                "cpu": cpu,
+                "memory": memory,
+                "nvidia.com/gpu": gpu,
+            },
+        }
+    }
+
+    # TODO: Always use GPU image
+    image = cfg.docker_oxeo_flows_gpu
+
+    pod_spec = make_pod_spec(
+        image=image,
+        extra_container_config=container_config,
+        env=env,
+    )
+    pod_spec.spec.containers[0].args.append("--no-dashboard")
+    return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
+
+
+executor = DaskExecutor(
+    cluster_class=dynamic_cluster,
+    # adapt_kwargs={"minimum": 2, "maximum": 100},
+    cluster_kwargs={},
+)
+
 storage = GitHub(
     repo=cfg.repo_name,
     path="oxeo/flows/predict-no-dask.py",
@@ -153,6 +201,7 @@ run_config = KubernetesRun(
 )
 with Flow(
     "predict-no-dask",
+    executor=executor,
     storage=storage,
     run_config=run_config,
 ) as flow:
