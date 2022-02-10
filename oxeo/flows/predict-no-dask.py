@@ -60,6 +60,48 @@ def create_masks(
     logger.info(f"{psutil.virtual_memory()=}")
     logger.info(f"{psutil.cpu_count()=}")
 
+    logger.warning("Creating 1GB numpy array")
+    a = np.ones((1000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 1GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 1GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 2GB numpy array")
+    a = np.ones((2000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 2GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 2GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 5GB numpy array")
+    a = np.ones((5000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 5GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 5GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 10GB numpy array")
+    a = np.ones((10000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 10GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 10GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 20GB numpy array")
+    a = np.ones((20000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 20GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 20GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 30GB numpy array")
+    a = np.ones((30000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 30GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 30GB arr. {psutil.virtual_memory()=}")
+
+    logger.warning("Creating 40GB numpy array")
+    a = np.ones((40000, 1000, 1000), dtype=np.uint8)
+    logger.warning(f"Created 40GB arr. {psutil.virtual_memory()=}")
+    del a
+    logger.warning(f"Deleted 40GB arr. {psutil.virtual_memory()=}")
+
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     logger.info("Got FS")
     model = model_factory(model_name)
