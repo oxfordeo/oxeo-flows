@@ -234,7 +234,12 @@ def dynamic_cluster(**kwargs):
         memory_limit=memory,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")
-    return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
+    return KubeCluster(
+        n_workers=n_workers,
+        pod_template=pod_spec,
+        scheduler_pod_template=make_pod_spec(image=image, env=env),
+        **kwargs,
+    )
 
 
 executor = DaskExecutor(
