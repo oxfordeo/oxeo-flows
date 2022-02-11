@@ -295,7 +295,7 @@ with Flow(
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
-    water_list = parse_water_list(water_list)
+    water_list = parse_water_list(water_list, postgis_password)
     run_id = generate_run_id(water_list)
     rename_flow_run(run_id)
 

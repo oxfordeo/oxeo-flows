@@ -38,7 +38,12 @@ def parse_constellations(constellations: Union[str, list]) -> list[str]:
 
 
 @task(log_stdout=True)
-def parse_water_list(water_list):
+def parse_water_list(
+    water_list: Union[str, int, list],
+    postgis_password: str,
+) -> tuple[int]:
+    if water_list == "chosen":
+        water_list = fetch_chosen_water_list(postgis_password)
     # split string of the form: 1234,8765
     if isinstance(water_list, str):
         water_list = water_list.split(",")
