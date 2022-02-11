@@ -232,6 +232,7 @@ def dynamic_cluster(**kwargs):
         image=image,
         extra_container_config=container_config,
         env=env,
+        memory_limit=memory,
     )
     pod_spec.spec.containers[0].args.append("--no-dashboard")
     return KubeCluster(n_workers=n_workers, pod_template=pod_spec, **kwargs)
