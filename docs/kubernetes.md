@@ -128,3 +128,9 @@ Don't forget to [install Nvidia drivers](https://cloud.google.com/kubernetes-eng
 ```
 kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded.yaml
 ```
+
+## Auto-provisioning
+**NB:** Not currently working. (Fails to allocate pods because says GPU limits haven't been defined even though they have.)
+```bash
+gcloud container clusters create oxeo-cluster --project=oxeo-main --zone=europe-west4-b --release-channel=regular --addons=HorizontalPodAutoscaling,HttpLoadBalancing,GcePersistentDiskCsiDriver   --no-enable-master-authorized-networks   --enable-ip-alias   --image-type COS_CONTAINERD   --metadata disable-legacy-endpoints=true   --enable-autoscaling     --enable-autoprovisioning     --min-cpu 0 --min-memory=0 --max-cpu=500 --max-memory=1000 --min-accelerator type=nvidia-tesla-t4,count=0 --max-accelerator type=nvidia-tesla-t4,count=20 --min-nodes=0 --max-nodes=500  --autoprovisioning-locations=europe-west4-b --autoprovisioning-image-type=cos_containerd
+```
