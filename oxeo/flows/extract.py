@@ -2,7 +2,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Union
+from typing import Union
 from uuid import uuid4
 
 import prefect
@@ -114,7 +114,7 @@ def stac(
 def tiler(
     bbox_size: int,
     region: Union[Polygon, MultiPolygon],
-) -> List[Tile]:
+) -> list[Tile]:
     logger = prefect.context.get("logger")
     logger.info("Creating tiles")
     tiles = split_region_in_utm_tiles(
@@ -126,11 +126,11 @@ def tiler(
 
 @task(log_stdout=True)
 def scheduler(
-    constellations: List[str],
-    tiles: List[Tile],
+    constellations: list[str],
+    tiles: list[Tile],
     item_collection: pystac.ItemCollection,
     split_m: int,
-) -> List[ExtractionTask]:
+) -> list[ExtractionTask]:
     logger = prefect.context.get("logger")
     logger.info("Create extraction tasks")
     extraction_tasks = create_tasks_by_splits(
@@ -149,12 +149,12 @@ def scheduler(
 @task(log_stdout=True)
 def preparer(
     credentials: Path,
-    constellations: List[str],
+    constellations: list[str],
     storage_path: str,
     bbox_size: int,
     chunk_size: int,
-    tiles: List[Tile],
-    extraction_tasks: List[ExtractionTask],
+    tiles: list[Tile],
+    extraction_tasks: list[ExtractionTask],
     overwrite: bool,
 ) -> None:
     logger = prefect.context.get("logger")
@@ -181,7 +181,7 @@ def deployer(
     credentials: Path,
     storage_path: str,
     chunk_size: int,
-    extraction_tasks: List[ExtractionTask],
+    extraction_tasks: list[ExtractionTask],
 ) -> str:
     logger = prefect.context.get("logger")
     logger.info("Deploy tasks to Cloud RUn")
@@ -201,7 +201,7 @@ def deployer(
 @task(log_stdout=True)
 def copy_metadata(
     credentials: str,
-    extraction_tasks: List[ExtractionTask],
+    extraction_tasks: list[ExtractionTask],
     storage_path: str,
 ) -> None:
     logger = prefect.context.get("logger")
@@ -214,7 +214,7 @@ def check_deploy_completion(
     project: str,
     user_id: str,
     job_id: str,
-    extraction_tasks: List[ExtractionTask],
+    extraction_tasks: list[ExtractionTask],
 ) -> bool:
     logger = prefect.context.get("logger")
     tot = len(extraction_tasks)
@@ -258,7 +258,7 @@ def log_to_bq(
     waterbody: WaterBody,
     start_date: str,
     end_date: str,
-    constellations: List[str],
+    constellations: list[str],
     bbox_size: int,
     split_m: int,
     chunk_size: int,
@@ -334,7 +334,10 @@ with Flow(
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
-    constellations = Parameter(name="constellations", default=["landsat-5","landsat-7","landsat-8","sentinel-2"])
+    constellations = Parameter(
+        name="constellations",
+        default=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
+    )
     overwrite = Parameter(name="overwrite", default=False)
 
     bbox_size = Parameter(name="bbox_size", default=10000)

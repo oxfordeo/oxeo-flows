@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List
 from uuid import uuid4
 
 import gcsfs
@@ -39,7 +38,7 @@ def create_masks(
     credentials: str,
     ckpt_path: str,
     target_size: int,
-    bands: List[str],
+    bands: list[str],
     cnn_batch_size: int,
     revisit_chunk_size: int,
     start_date: str,
@@ -146,7 +145,7 @@ def log_to_bq(
     df: pd.DataFrame,
     waterbody: WaterBody,
     model_name: str,
-    constellations: List[str],
+    constellations: list[str],
     pfaf2: int = 12,
 ) -> None:
     logger = prefect.context.get("logger")

@@ -1,5 +1,5 @@
 from functools import partial
-from typing import List, Tuple, Union
+from typing import Union
 
 import geopandas as gpd
 import prefect
@@ -18,7 +18,7 @@ from oxeo.water.models.utils import TilePath, WaterBody
 
 
 @task(log_stdout=True)
-def parse_constellations(constellations: Union[str, list]) -> List[str]:
+def parse_constellations(constellations: Union[str, list]) -> list[str]:
     logger = prefect.context.get("logger")
 
     all_constellations = list(BAND_INFO.keys()) + ["sentinel-1"]
@@ -46,12 +46,14 @@ def parse_water_list(water_list):
         water_list = [water_list]
     # ensure water_list is a tuple of ints
     water_list = tuple(int(w) for w in water_list)
+    logger = prefect.context.get("logger")
+    logger.warning(f"Parsed {water_list=}")
     return water_list
 
 
 @task(log_stdout=True)
 def generate_run_id(
-    water_list: List[int],
+    water_list: list[int],
 ) -> str:
     water = "_".join(str(w) for w in water_list)
     return f"lakes_{water}"
@@ -68,11 +70,30 @@ def rename_flow_run(
     Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
 
 
+def fetch_chosen_water_list(
+    password: str,
+) -> list[int]:
+    fetch = PostgresFetch(
+        db_name=cfg.db_name,
+        user=cfg.db_user,
+        host=cfg.db_host,
+        port=5432,
+        fetch="all",
+        query="SELECT area_id FROM chosen",
+    )
+
+    data = fetch.run(
+        password=password,
+    )
+    data = [d[0] for d in data]
+    return data
+
+
 @task(log_stdout=True)
 def fetch_water_list(
-    water_list: List[int],
+    water_list: list[int],
     password: str,
-) -> List[Tuple[int, str, str]]:
+) -> list[tuple[int, str, str]]:
     fetch = PostgresFetch(
         db_name=cfg.db_name,
         user=cfg.db_user,
@@ -86,12 +107,14 @@ def fetch_water_list(
         password=password,
         data=(water_list,),  # need the extra comma to make it a tuple
     )
+    logger = prefect.context.get("logger")
+    logger.warning(f"Got water data with {len(data)=}")
     return data
 
 
 @task(log_stdout=True)
 def data2gdf(
-    data: List[Tuple[int, str, str]],
+    data: list[tuple[int, str, str]],
 ) -> gpd.GeoDataFrame:
     wkb_hex = partial(wkb.loads, hex=True)
     gdf = gpd.GeoDataFrame(data, columns=["area_id", "name", "geometry"])
@@ -115,7 +138,7 @@ def make_paths(bucket, tiles, constellations, root_dir):
 
 def get_tiles(
     geom: Union[Polygon, MultiPolygon, gpd.GeoSeries, gpd.GeoDataFrame]
-) -> List[Tile]:
+) -> list[Tile]:
     try:
         geom = geom.unary_union
     except AttributeError:
@@ -127,9 +150,9 @@ def get_tiles(
 def get_all_paths(
     gdf: gpd.GeoDataFrame,
     bucket: str,
-    constellations: List[str],
+    constellations: list[str],
     root_dir: str = "prod",
-) -> List[TilePath]:
+) -> list[TilePath]:
     logger = prefect.context.get("logger")
     all_tiles = get_tiles(gdf)
     all_tilepaths = make_paths(bucket, all_tiles, constellations, root_dir)
@@ -143,9 +166,9 @@ def get_all_paths(
 def get_waterbodies(
     gdf: gpd.GeoDataFrame,
     bucket: str,
-    constellations: List[str],
+    constellations: list[str],
     root_dir: str = "prod",
-) -> List[WaterBody]:
+) -> list[WaterBody]:
     logger = prefect.context.get("logger")
     logger.info("Getting separate tiles and paths for each waterbody")
     waterbodies = []
