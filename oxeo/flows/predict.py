@@ -87,7 +87,7 @@ def create_masks(
     masks = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
-            f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)}"
+            f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)} of {max_idx}"
         )
         revisit_masks = predictor.predict(
             path,
