@@ -11,6 +11,8 @@ from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
+from prefect.schedules import Schedule
+from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from satextractor.deployer import deploy_tasks
@@ -300,6 +302,14 @@ def log_to_bq(
         )
 
 
+clock_params = dict(
+    water_list="chosen",
+    start_date="1980-01-01",
+    end_date="2100-01-01",
+)
+clock = CronClock("45 8 * * 1", parameter_defaults=clock_params)
+schedule = Schedule(clocks=[clock])
+
 executor = DaskExecutor()
 storage = GitHub(
     repo=cfg.repo_name,
@@ -316,6 +326,7 @@ with Flow(
     executor=executor,
     storage=storage,
     run_config=run_config,
+    schedule=schedule,
 ) as flow:
     # secrets
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
