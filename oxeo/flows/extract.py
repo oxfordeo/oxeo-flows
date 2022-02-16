@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Union
 from uuid import uuid4
 
+import gcsfs
 import prefect
 import pystac
 from google.cloud import bigquery
@@ -132,9 +133,14 @@ def scheduler(
     tiles: list[Tile],
     item_collection: pystac.ItemCollection,
     split_m: int,
+    overwrite: bool,
+    storage_path: str,
+    project: str,
+    credentials: str,
 ) -> list[ExtractionTask]:
     logger = prefect.context.get("logger")
     logger.info("Create extraction tasks")
+    fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     extraction_tasks = create_tasks_by_splits(
         tiles=tiles,
         split_m=split_m,
@@ -144,6 +150,9 @@ def scheduler(
         interval=1,
         n_jobs=-1,
         verbose=0,
+        overwrite=overwrite,
+        storage_path=storage_path,
+        fs_mapper=fs.get_mapper,
     )
     return extraction_tasks
 
@@ -371,7 +380,16 @@ with Flow(
     built = build(project, gcp_region, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
-    extraction_tasks = scheduler(constellations, tiles, item_collection, split_m)
+    extraction_tasks = scheduler(
+        constellations,
+        tiles,
+        item_collection,
+        split_m,
+        overwrite,
+        storage_path,
+        project,
+        credentials,
+    )
     prepped = preparer(
         credentials,
         constellations,
