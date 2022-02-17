@@ -41,7 +41,7 @@ def parse_constellations(constellations: Union[str, list]) -> list[str]:
 def parse_water_list(
     water_list: Union[str, int, list],
     postgis_password: str,
-) -> tuple[int]:
+) -> tuple[int, ...]:
     if water_list == "chosen":
         water_list = fetch_chosen_water_list(postgis_password)
     # split string of the form: 1234,8765
@@ -50,10 +50,10 @@ def parse_water_list(
     if isinstance(water_list, int):
         water_list = [water_list]
     # ensure water_list is a tuple of ints
-    water_list = tuple(int(w) for w in water_list)
+    water_list_parsed = tuple(int(w) for w in water_list)
     logger = prefect.context.get("logger")
-    logger.warning(f"Parsed {water_list=}")
-    return water_list
+    logger.warning(f"Parsed {water_list_parsed=}")
+    return water_list_parsed
 
 
 @task

@@ -81,7 +81,7 @@ def create_masks(
         + 1
     )
 
-    masks = []
+    mask_list = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
             f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)} of {max_idx}"
@@ -90,8 +90,8 @@ def create_masks(
             path,
             revisit=slice(i, min(i + revisit_chunk_size, max_idx)),
         )
-        masks.append(revisit_masks)
-    masks = np.vstack(masks)
+        mask_list.append(revisit_masks)
+    masks = np.vstack(mask_list)
 
     mask_path = f"{path.mask_path}/{model_name}"
     logger.info(f"Saving mask to {mask_path}")
