@@ -12,6 +12,7 @@ from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from zarr.errors import ArrayNotFoundError
 
 import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
@@ -41,7 +42,8 @@ def create_masks(
     revisit_chunk_size: int,
     start_date: str,
     end_date: str,
-) -> None:
+    overwrite: bool,
+) -> tuple[str, str]:
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
@@ -68,18 +70,28 @@ def create_masks(
         [np.datetime64(datetime.fromisoformat(el)) for el in timestamps],
     )
 
-    sdt = datetime.strptime(start_date, "%Y-%m-%d")
-    edt = datetime.strptime(end_date, "%Y-%m-%d")
+    sdt = np.datetime64(datetime.strptime(start_date, "%Y-%m-%d"))
+    edt = np.datetime64(datetime.strptime(end_date, "%Y-%m-%d"))
 
-    min_idx = np.where(
-        (timestamps >= np.datetime64(sdt)) & (timestamps <= np.datetime64(edt))
-    )[0].min()
-    max_idx = (
-        np.where(
-            (timestamps >= np.datetime64(sdt)) & (timestamps <= np.datetime64(edt))
-        )[0].max()
-        + 1
-    )
+    date_overlap = np.where((timestamps >= sdt) & (timestamps <= edt))[0]
+    min_idx = date_overlap.min()
+    max_idx = date_overlap.max() + 1
+
+    mask_path = f"{path.mask_path}/{model_name}"
+    mask_mapper = fs.get_mapper(mask_path)
+
+    if not overwrite:
+        # check existing masks and only do new ones
+        try:
+            mask_arr = zarr.open_array(mask_mapper, "r")
+            prev_max_idx = mask_arr.attrs["max_filled"]
+            min_idx = prev_max_idx + 1
+        except ArrayNotFoundError:
+            logger.warning("Set overwrite=False, but there was no existing array")
+        except KeyError:
+            logger.warning(
+                "Set overwrite=False, but attrs['max_filled'] had not been set"
+            )
 
     mask_list = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
@@ -93,14 +105,11 @@ def create_masks(
         mask_list.append(revisit_masks)
     masks = np.vstack(mask_list)
 
-    mask_path = f"{path.mask_path}/{model_name}"
-    logger.info(f"Saving mask to {mask_path}")
-    mask_mapper = fs.get_mapper(mask_path)
-
     # open as 'append' -> create if doesn't exist
     time_shape = timestamps.shape[0]
     geo_shape = masks.shape[1:]
     output_shape = (time_shape, *geo_shape)
+    logger.info(f"Saving mask to {mask_path}")
     logger.info(f"Output zarr shape: {output_shape}")
 
     mask_arr = zarr.open_array(
@@ -110,11 +119,24 @@ def create_masks(
         chunks=(1, 1000, 1000),
         dtype=np.uint8,
     )
+    mask_arr.resize(*output_shape)
+    mask_arr.attrs["max_filled"] = max_idx
 
     # write data to archive
     mask_arr[min_idx:max_idx, ...] = masks
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
-    return
+
+    written_start = np.datetime_as_string(timestamps[min_idx], unit="D")
+    written_end = np.datetime_as_string(timestamps[max_idx], unit="D")
+
+    return written_start, written_end
+
+
+@task
+def minmax_written_dates(written_dates: list[tuple[str, str]]) -> tuple[str, str]:
+    written_start = min(w[0] for w in written_dates)
+    written_end = max(w[1] for w in written_dates)
+    return written_start, written_end
 
 
 @task(log_stdout=True)
@@ -142,8 +164,11 @@ def log_to_bq(
     df: pd.DataFrame,
     waterbody: WaterBody,
     job_id: str,
+    overwrite: bool,
     start_date: str,
     end_date: str,
+    written_start: str,
+    written_end: str,
     model_name: str,
     ckpt_path: str,
     constellations: list[str],
@@ -169,11 +194,11 @@ def log_to_bq(
         area_id=area_id,
         model=model_name,
         model_checkpoint=ckpt_path,
+        overwrite=overwrite,
         start_date=start_date,
         end_date=end_date,
-        written_start_date=start_date,  # TODO add overwrite=False option
-        written_end_date=end_date,
-        overwrite=True,
+        written_start_date=written_start,
+        written_end_date=written_end,
         timestamp=timestamp,
         tiles=tiles,
         constellations=constellations,
@@ -280,13 +305,14 @@ with Flow(
     flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
-    # run_name = Parameter(name="run_name", default="noname")
     model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
     bucket = Parameter(name="bucket", default="oxeo-water")
     root_dir = Parameter(name="root_dir", default="prod")
+
+    overwrite = Parameter(name="overwrite", default=False)
     start_date = Parameter(name="start_date", default="1984-01-01")
     end_date = Parameter(name="end_date", default="2100-02-01")
 
@@ -304,8 +330,6 @@ with Flow(
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list, postgis_password)
-    # run_id = generate_run_id(water_list)
-    # rename_flow_run(run_id)
 
     # get geom
     db_data = fetch_water_list(water_list=water_list, password=postgis_password)
@@ -316,7 +340,7 @@ with Flow(
 
     # create_masks() is mapped in parallel across all the paths
     # the returned masks is an empty list purely for the DAG
-    masks = create_masks.map(
+    written_dates = create_masks.map(
         path=all_paths,
         model_name=unmapped(model_name),
         project=unmapped(project),
@@ -326,9 +350,12 @@ with Flow(
         bands=unmapped(bands),
         cnn_batch_size=unmapped(cnn_batch_size),
         revisit_chunk_size=unmapped(revisit_chunk_size),
+        overwrite=unmapped(overwrite),
         start_date=unmapped(start_date),
         end_date=unmapped(end_date),
     )
+
+    written_start, written_end = minmax_written_dates(written_dates)
 
     # now instead of mapping across all paths, we map across
     # individual lakes
@@ -337,15 +364,18 @@ with Flow(
         waterbody=waterbodies,
         mask=unmapped(model_name),
         label=unmapped(timeseries_label),
-        upstream_tasks=[unmapped(masks)],
+        upstream_tasks=[unmapped(written_dates)],
     )
     job_id = get_job_id()
     log_to_bq.map(
         df=ts_dfs,
         waterbody=waterbodies,
         job_id=unmapped(job_id),
+        overwrite=unmapped(overwrite),
         start_date=unmapped(start_date),
         end_date=unmapped(end_date),
+        written_start=unmapped(written_start),
+        written_end=unmapped(written_end),
         model_name=unmapped(model_name),
         ckpt_path=unmapped(ckpt_path),
         constellations=unmapped(constellations),
