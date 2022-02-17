@@ -3,7 +3,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Union
-from uuid import uuid4
 
 import gcsfs
 import prefect
@@ -30,11 +29,10 @@ from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
     gdf2geom,
-    generate_run_id,
+    get_job_id,
     get_waterbodies,
     parse_constellations,
     parse_water_list,
-    rename_flow_run,
 )
 from oxeo.water.models.utils import WaterBody
 
@@ -193,12 +191,12 @@ def deployer(
     storage_path: str,
     chunk_size: int,
     extraction_tasks: list[ExtractionTask],
-) -> str:
+) -> None:
     logger = prefect.context.get("logger")
     logger.info("Deploy tasks to Cloud RUn")
 
     topic = f"projects/{project}/topics/{'-'.join([user_id, 'stacextractor'])}"
-    job_id = deploy_tasks(
+    deploy_tasks(
         job_id=job_id,
         credentials=credentials,
         extraction_tasks=extraction_tasks,
@@ -206,7 +204,6 @@ def deployer(
         chunk_size=chunk_size,
         topic=topic,
     )
-    return job_id
 
 
 @task(log_stdout=True)
@@ -267,19 +264,25 @@ def check_deploy_completion(
 @task(log_stdout=True)
 def log_to_bq(
     waterbody: WaterBody,
+    extraction_tasks: list[ExtractionTask],
+    job_id: str,
     start_date: str,
     end_date: str,
     constellations: list[str],
     bbox_size: int,
     split_m: int,
     chunk_size: int,
+    overwrite: bool,
 ) -> None:
     logger = prefect.context.get("logger")
 
     area_id = waterbody.area_id
-    run_id = f"{area_id}-{str(uuid4())[:8]}"
+    run_id = f"{job_id}_{area_id}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
     minx, miny, maxx, maxy = waterbody.geometry.bounds
+
+    written_start = min(e.sensing_time for e in extraction_tasks).date().isoformat()
+    written_end = max(e.sensing_time for e in extraction_tasks).date().isoformat()
 
     logger.info(f"Log lake {area_id} extraction to BQ")
 
@@ -290,6 +293,9 @@ def log_to_bq(
         timestamp=timestamp,
         start_date=start_date,
         end_date=end_date,
+        written_start_date=written_start,
+        written_end_date=written_end,
+        overwrite=overwrite,
         constellations=constellations,
         bbox_size=bbox_size,
         split_m=split_m,
@@ -367,8 +373,9 @@ with Flow(
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list, postgis_password)
-    run_id = generate_run_id(water_list)
-    rename_flow_run(run_id)
+    job_id = get_job_id()
+    # run_id = generate_run_id(water_list)
+    # rename_flow_run(run_id)
 
     # get geom
     db_data = fetch_water_list(water_list=water_list, password=postgis_password)
@@ -400,8 +407,8 @@ with Flow(
         extraction_tasks,
         overwrite,
     )
-    job_id = deployer(
-        run_id,
+    deployed = deployer(
+        job_id,
         project,
         user_id,
         credentials,
@@ -412,16 +419,25 @@ with Flow(
     )
     copy_metadata(credentials, extraction_tasks, storage_path)
 
-    complete = check_deploy_completion(project, user_id, job_id, extraction_tasks)
+    complete = check_deploy_completion(
+        project,
+        user_id,
+        job_id,
+        extraction_tasks,
+        upstream_tasks=[deployed],
+    )
 
     waterbodies = get_waterbodies(gdf, bucket, constellations)
     log_to_bq.map(
         waterbody=waterbodies,
+        extraction_tasks=unmapped(extraction_tasks),
+        job_id=unmapped(job_id),
         start_date=unmapped(start_date),
         end_date=unmapped(end_date),
         constellations=unmapped(constellations),
         bbox_size=unmapped(bbox_size),
         split_m=unmapped(split_m),
         chunk_size=unmapped(chunk_size),
+        overwrite=unmapped(overwrite),
         upstream_tasks=[unmapped(complete)],
     )

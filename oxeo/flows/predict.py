@@ -1,5 +1,4 @@
 from datetime import datetime
-from uuid import uuid4
 
 import gcsfs
 import numpy as np
@@ -18,12 +17,11 @@ import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
     data2gdf,
     fetch_water_list,
-    generate_run_id,
     get_all_paths,
+    get_job_id,
     get_waterbodies,
     parse_constellations,
     parse_water_list,
-    rename_flow_run,
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
@@ -141,10 +139,13 @@ def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataF
 
 @task(log_stdout=True)
 def log_to_bq(
-    name: str,
     df: pd.DataFrame,
     waterbody: WaterBody,
+    job_id: str,
+    start_date: str,
+    end_date: str,
     model_name: str,
+    ckpt_path: str,
     constellations: list[str],
     pfaf2: int = 12,
 ) -> None:
@@ -154,7 +155,7 @@ def log_to_bq(
     logger.info("Prepare ts dataframe and model_run dict")
     area_id = waterbody.area_id
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
-    run_id = f"{area_id}-{model_name}-{name}-{str(uuid4())[:8]}"
+    run_id = f"{job_id}_{area_id}"
     df = df.assign(
         area_id=area_id,
         run_id=run_id,
@@ -167,6 +168,12 @@ def log_to_bq(
         run_id=run_id,
         area_id=area_id,
         model=model_name,
+        model_checkpoint=ckpt_path,
+        start_date=start_date,
+        end_date=end_date,
+        written_start_date=start_date,  # TODO add overwrite=False option
+        written_end_date=end_date,
+        overwrite=True,
         timestamp=timestamp,
         tiles=tiles,
         constellations=constellations,
@@ -174,6 +181,7 @@ def log_to_bq(
         bbox_s=miny,
         bbox_w=minx,
         bbox_e=maxx,
+        metrics={},
     )
 
     logger.info("Insert results into BigQuery")
@@ -272,7 +280,7 @@ with Flow(
     flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
-    run_name = Parameter(name="run_name", default="noname")
+    # run_name = Parameter(name="run_name", default="noname")
     model_name = Parameter(name="model_name", default="pekel")
 
     credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
@@ -296,8 +304,8 @@ with Flow(
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
     water_list = parse_water_list(water_list, postgis_password)
-    run_id = generate_run_id(water_list)
-    rename_flow_run(run_id)
+    # run_id = generate_run_id(water_list)
+    # rename_flow_run(run_id)
 
     # get geom
     db_data = fetch_water_list(water_list=water_list, password=postgis_password)
@@ -331,10 +339,14 @@ with Flow(
         label=unmapped(timeseries_label),
         upstream_tasks=[unmapped(masks)],
     )
+    job_id = get_job_id()
     log_to_bq.map(
-        name=unmapped(run_name),
         df=ts_dfs,
         waterbody=waterbodies,
+        job_id=unmapped(job_id),
+        start_date=unmapped(start_date),
+        end_date=unmapped(end_date),
         model_name=unmapped(model_name),
+        ckpt_path=unmapped(ckpt_path),
         constellations=unmapped(constellations),
     )

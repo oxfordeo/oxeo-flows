@@ -1,5 +1,4 @@
 from datetime import timedelta
-from typing import List
 
 import prefect
 from prefect import Flow, Parameter, task
@@ -8,7 +7,6 @@ from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 
 import oxeo.flows.config as cfg
-from oxeo.flows.utils import rename_flow_run
 
 
 # More task parameters at
@@ -17,7 +15,7 @@ from oxeo.flows.utils import rename_flow_run
 def task_one(
     a_word: str,
     # Make sure to provide return type annotations
-) -> List[int]:
+) -> list[int]:
 
     # Prefect logger sends messages to cloud
     # https://docs.prefect.io/core/concepts/logging.html
@@ -89,13 +87,7 @@ with Flow(
     run_config=run_config,
 ) as flow:
     # Parameters will show up in Prefect Cloud
-    aoi_id = Parameter(name="aoi_id", required=True)
     word = Parameter(name="word", default="Hello")
-
-    # This is just a task to rename the Flow run
-    # (that shows up in Cloud after running)
-    # to something more useful!
-    rename_flow_run(aoi_id)
 
     # Prefect uses the code to figure out the implicit
     # dependency graph between tasks

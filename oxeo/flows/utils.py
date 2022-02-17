@@ -1,10 +1,10 @@
+from datetime import datetime
 from functools import partial
 from typing import Union
 
 import geopandas as gpd
 import prefect
 from prefect import task
-from prefect.client import Client
 from prefect.tasks.postgres.postgres import PostgresFetch
 from pyproj import CRS
 from satextractor.models import Tile
@@ -56,23 +56,12 @@ def parse_water_list(
     return water_list
 
 
-@task(log_stdout=True)
-def generate_run_id(
-    water_list: list[int],
-) -> str:
-    water = "_".join(str(w) for w in water_list)
-    return f"lakes_{water}"
-
-
-@task(log_stdout=True, max_retries=0)
-def rename_flow_run(
-    aoi_id: int,
-) -> None:
-    logger = prefect.context.get("logger")
-    old_name = prefect.context.get("flow_run_name")
-    new_name = f"run_{aoi_id}"
-    logger.info(f"Rename the Flow Run from {old_name} to {new_name}")
-    Client().set_flow_run_name(prefect.context.get("flow_run_id"), new_name)
+@task
+def get_job_id() -> str:
+    flow_run_name = prefect.context.get("flow_run_name")
+    timestamp = datetime.utcnow().isoformat(timespec="seconds")
+    job_id = f"{flow_run_name}_{timestamp}"
+    return job_id
 
 
 def fetch_chosen_water_list(
