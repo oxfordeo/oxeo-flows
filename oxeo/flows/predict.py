@@ -133,21 +133,21 @@ def create_masks(
 
 
 @task
-def minmax_written_dates(written_dates: list[tuple[str, str]]) -> tuple[str, str]:
+def minmax_written_dates(
+    written_dates: list[tuple[str, str]],
+) -> tuple[str, str]:
     written_start = min(w[0] for w in written_dates)
     written_end = max(w[1] for w in written_dates)
     return written_start, written_end
 
 
 @task(log_stdout=True)
-def merge_to_timeseries(waterbody: WaterBody, mask: str, label: int) -> pd.DataFrame:
+def merge_to_timeseries(
+    waterbody: WaterBody,
+    mask: str,
+    label: int,
+) -> pd.DataFrame:
     logger = prefect.context.get("logger")
-    # TODO Fix this
-    # oxeo-water merge_masks wants constellation as a parameter
-    # but we should merge all constellations together?
-    # Removed last bit of paths as parse_xy in model/utils expects
-    # a different path structure (without contellation)
-
     logger.info(f"Merge all masks in {waterbody.paths}")
     timeseries_masks = merge_masks_all_constellations(
         waterbody=waterbody,

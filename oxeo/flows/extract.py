@@ -229,7 +229,7 @@ def check_deploy_completion(
 
     prev_done = -1
     loops_unchanged = 0
-    max_loops_no_progress = 5
+    max_loops_no_progress = 3
     base_sleep = 60
 
     while True:
@@ -241,19 +241,15 @@ def check_deploy_completion(
         logger.info(f"Cloud Run extraction tasks: {done} of {tot}")
 
         if done >= tot:
-            logger.info(f"All {tot} extraction tasks done!")
+            logger.info(f"All {done} of {tot} extraction tasks done!")
             return True
-        elif done == prev_done:
+        elif done >= prev_done:
+            loops_unchanged = 0
+        else:
             loops_unchanged += 1
-            if loops_unchanged >= max_loops_no_progress:
+            if loops_unchanged > max_loops_no_progress:
                 logger.info(f"No progress on tasks after {loops_unchanged} loops")
                 raise Exception("No further progress on tasks")
-        else:
-            loops_unchanged = 0
-
-        # TODO This isn't working
-        # Just sleeps for 10 seconds every time and never quits
-        # But Cloud Run has resource limits so maybe don't want it to quit?
 
         # Exponential backoff, only when nothing has changed
         sleep = base_sleep * (2 ** (loops_unchanged + 1) - 1)

@@ -7,7 +7,7 @@ Repository for managing pipelines etc, using Prefect for orchestration.
 ![Infrastructure diagram](./diagram.svg)
 
 ## Getting started
-**TODO**: Currently any internal dependencies (such as the `oxeo/flows/utils.py` file) can *not* be pulled from GitHub, and therefore must be installed into the Docker image.
+Currently any internal dependencies (such as the `oxeo/flows/utils.py` file) can *not* be pulled from GitHub, and therefore must be installed into the Docker image.
 Have set the GitHub Action to watch `utils.py` only. Not sure what the best method is...
 
 ### Project structure
