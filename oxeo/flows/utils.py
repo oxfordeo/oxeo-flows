@@ -85,7 +85,7 @@ def fetch_chosen_water_list(
 
 @task(log_stdout=True)
 def fetch_water_list(
-    water_list: list[int],
+    water_list: tuple[int],
     password: str,
 ) -> list[tuple[int, str, str]]:
     fetch = PostgresFetch(

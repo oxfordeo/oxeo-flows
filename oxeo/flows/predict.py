@@ -206,7 +206,6 @@ def log_to_bq(
         bbox_s=miny,
         bbox_w=minx,
         bbox_e=maxx,
-        metrics={},
     )
 
     logger.info("Insert results into BigQuery")
