@@ -122,6 +122,7 @@ def tiler(
         region=region,
         bbox_size=bbox_size,
     )
+    logger.warning(f"Got the following tiles: {[t.id for t in tiles]}")
     return tiles
 
 
