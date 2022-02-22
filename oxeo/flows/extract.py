@@ -273,6 +273,10 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
 
+    if len(extraction_tasks) == 0:
+        logger.warning("No extraction tasks, not logging anything to BQ")
+        return
+
     area_id = waterbody.area_id
     run_id = f"{job_id}_{area_id}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
