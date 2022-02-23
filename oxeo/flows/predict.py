@@ -131,7 +131,7 @@ def create_masks(
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
 
     written_start = np.datetime_as_string(timestamps[min_idx], unit="D")
-    written_end = np.datetime_as_string(timestamps[max_idx], unit="D")
+    written_end = np.datetime_as_string(timestamps[max_idx - 1], unit="D")
 
     return written_start, written_end
 
