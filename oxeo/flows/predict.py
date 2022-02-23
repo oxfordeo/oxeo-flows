@@ -97,6 +97,10 @@ def create_masks(
                 "Set overwrite=False, but attrs['max_filled'] had not been set"
             )
 
+    if min_idx >= max_idx:
+        logger.warning("min_idx is >= max_idx: nothing to do, skipping")
+        return end_date, end_date
+
     mask_list = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
@@ -372,6 +376,9 @@ with Flow(
         end_date=unmapped(end_date),
     )
 
+    # TODO
+    # This gets the start/end overall
+    # Which will be misleading at the lake level
     written_start, written_end = minmax_written_dates(written_dates)
 
     # now instead of mapping across all paths, we map across
