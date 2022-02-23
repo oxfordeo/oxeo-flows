@@ -141,12 +141,28 @@ def create_masks(
 
 
 @task
-def minmax_written_dates(
+def get_written_dates_per_waterbody(
+    all_paths: list[TilePath],
     written_dates: list[tuple[str, str]],
-) -> tuple[str, str]:
-    written_start = min(w[0] for w in written_dates)
-    written_end = max(w[1] for w in written_dates)
-    return written_start, written_end
+    waterbodies: list[WaterBody],
+) -> dict[int, tuple[str, str]]:
+    """The mapping is keyed by area_id (int)."""
+
+    logger = prefect.context.get("logger")
+    logger.info("Getting the written_dates for each waterbody")
+    waterbody_dates_mapping = {}
+    all_tile_ids: list[str] = [tp.tile.id for tp in all_paths]
+    for wb in waterbodies:
+        wb_tile_ids: list[str] = [tp.tile.id for tp in wb.paths]
+        wb_dates = [
+            dates
+            for tile_id, dates in zip(all_tile_ids, written_dates)
+            if tile_id in wb_tile_ids
+        ]
+        start = min(w[0] for w in wb_dates)
+        end = max(w[1] for w in wb_dates)
+        waterbody_dates_mapping[wb.area_id] = (start, end)
+    return waterbody_dates_mapping
 
 
 @task(log_stdout=True)
@@ -175,8 +191,7 @@ def log_to_bq(
     overwrite: bool,
     start_date: str,
     end_date: str,
-    written_start: str,
-    written_end: str,
+    written_dates_mapping: dict[int, tuple[str, str]],
     model_name: str,
     ckpt_path: str,
     constellations: list[str],
@@ -184,6 +199,9 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
     tiles = list({p.tile.id for p in waterbody.paths})
+
+    written_start, written_end = written_dates_mapping[waterbody.area_id]
+    logger.warning(f"Got {written_start=}, {written_end=} from mapping")
 
     logger.info("Prepare ts dataframe and model_run dict")
     area_id = waterbody.area_id
@@ -376,14 +394,14 @@ with Flow(
         end_date=unmapped(end_date),
     )
 
-    # TODO
-    # This gets the start/end overall
-    # Which will be misleading at the lake level
-    written_start, written_end = minmax_written_dates(written_dates)
-
     # now instead of mapping across all paths, we map across
     # individual lakes
     waterbodies = get_waterbodies(gdf, bucket, constellations, root_dir)
+    written_dates_mapping = get_written_dates_per_waterbody(
+        all_paths=all_paths,
+        written_dates=written_dates,
+        waterbodies=waterbodies,
+    )
     ts_dfs = merge_to_timeseries.map(
         waterbody=waterbodies,
         mask=unmapped(model_name),
@@ -398,8 +416,7 @@ with Flow(
         overwrite=unmapped(overwrite),
         start_date=unmapped(start_date),
         end_date=unmapped(end_date),
-        written_start=unmapped(written_start),
-        written_end=unmapped(written_end),
+        written_dates_mapping=unmapped(written_dates_mapping),
         model_name=unmapped(model_name),
         ckpt_path=unmapped(ckpt_path),
         constellations=unmapped(constellations),
