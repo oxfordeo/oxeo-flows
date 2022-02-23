@@ -291,7 +291,7 @@ schedule = Schedule(clocks=[clock])
 
 executor = DaskExecutor(
     cluster_class=dynamic_cluster,
-    # adapt_kwargs={"minimum": 2, "maximum": 100},
+    adapt_kwargs={"maximum": 80},
     cluster_kwargs={},
 )
 storage = GitHub(
