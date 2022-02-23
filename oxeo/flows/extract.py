@@ -251,6 +251,7 @@ def check_deploy_completion(
             if loops_unchanged > max_loops_no_progress:
                 logger.info(f"No progress on tasks after {loops_unchanged} loops")
                 raise Exception("No further progress on tasks")
+        prev_done = done
 
         # Exponential backoff, only when nothing has changed
         sleep = base_sleep * (2 ** (loops_unchanged + 1) - 1)
