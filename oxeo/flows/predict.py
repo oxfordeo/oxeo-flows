@@ -76,6 +76,7 @@ def create_masks(
     date_overlap = np.where((timestamps >= sdt) & (timestamps <= edt))[0]
     min_idx = date_overlap.min()
     max_idx = date_overlap.max() + 1
+    logger.info(f"From overlap with imagery and dates entered: {min_idx=}, {max_idx=}")
 
     mask_path = f"{path.mask_path}/{model_name}"
     mask_mapper = fs.get_mapper(mask_path)
@@ -86,6 +87,7 @@ def create_masks(
             mask_arr = zarr.open_array(mask_mapper, "r")
             prev_max_idx = int(mask_arr.attrs["max_filled"])
             min_idx = prev_max_idx + 1
+            logger.warning(f"Found {prev_max_idx=}, set {min_idx=}")
         except ArrayNotFoundError:
             logger.warning("Set overwrite=False, but there was no existing array")
         except KeyError:
