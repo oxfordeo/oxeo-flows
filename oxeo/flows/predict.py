@@ -84,7 +84,7 @@ def create_masks(
         # check existing masks and only do new ones
         try:
             mask_arr = zarr.open_array(mask_mapper, "r")
-            prev_max_idx = mask_arr.attrs["max_filled"]
+            prev_max_idx = int(mask_arr.attrs["max_filled"])
             min_idx = prev_max_idx + 1
         except ArrayNotFoundError:
             logger.warning("Set overwrite=False, but there was no existing array")
@@ -120,7 +120,7 @@ def create_masks(
         dtype=np.uint8,
     )
     mask_arr.resize(*output_shape)
-    mask_arr.attrs["max_filled"] = max_idx
+    mask_arr.attrs["max_filled"] = int(max_idx)
 
     # write data to archive
     mask_arr[min_idx:max_idx, ...] = masks
