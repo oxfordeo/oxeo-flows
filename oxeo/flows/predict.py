@@ -10,6 +10,8 @@ from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
+from prefect.schedules import Schedule
+from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from zarr.errors import ArrayNotFoundError
@@ -276,6 +278,17 @@ def dynamic_cluster(**kwargs):
     )
 
 
+clock_params = dict(
+    water_list="chosen",
+    constellations=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
+    start_date="1980-01-01",
+    end_date="2100-01-01",
+    gpu_per_worker=1,
+    n_workers=2,
+)
+clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
+schedule = Schedule(clocks=[clock])
+
 executor = DaskExecutor(
     cluster_class=dynamic_cluster,
     # adapt_kwargs={"minimum": 2, "maximum": 100},
@@ -295,18 +308,19 @@ with Flow(
     executor=executor,
     storage=storage,
     run_config=run_config,
+    schedule=schedule,
 ) as flow:
     # secrets
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
     # parameters
-    flow.add_task(Parameter("n_workers", default=2))
-    flow.add_task(Parameter("memory_per_worker", default="32G"))
-    flow.add_task(Parameter("cpu_per_worker", default=8))
+    flow.add_task(Parameter("n_workers", default=1))
+    flow.add_task(Parameter("memory_per_worker", default="58G"))
+    flow.add_task(Parameter("cpu_per_worker", default=15))
     flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
-    model_name = Parameter(name="model_name", default="pekel")
+    model_name = Parameter(name="model_name", default="cnn")
 
     credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
@@ -318,15 +332,17 @@ with Flow(
     end_date = Parameter(name="end_date", default="2100-02-01")
 
     constellations = Parameter(name="constellations", default=["sentinel-2"])
-    ckpt_path = Parameter(name="cktp_path", default="gs://oxeo-models/semseg/last.ckpt")
+    ckpt_path = Parameter(
+        name="cktp_path", default="gs://oxeo-models/semseg/epoch_012.ckpt"
+    )
     target_size = Parameter(name="target_size", default=1000)
     bands = Parameter(
         name="bands", default=["nir", "red", "green", "blue", "swir1", "swir2"]
     )
     timeseries_label = Parameter(name="timeseries_label", default=1)
 
-    cnn_batch_size = Parameter(name="cnn_batch_size", default=16)
-    revisit_chunk_size = Parameter(name="revisit_chunk_size", default=2)
+    cnn_batch_size = Parameter(name="cnn_batch_size", default=64)
+    revisit_chunk_size = Parameter(name="revisit_chunk_size", default=8)
 
     # rename the Flow run to reflect the parameters
     constellations = parse_constellations(constellations)
