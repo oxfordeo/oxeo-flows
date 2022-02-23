@@ -315,8 +315,8 @@ with Flow(
 
     # parameters
     flow.add_task(Parameter("n_workers", default=1))
-    flow.add_task(Parameter("memory_per_worker", default="58G"))
-    flow.add_task(Parameter("cpu_per_worker", default=15))
+    flow.add_task(Parameter("memory_per_worker", default="56G"))
+    flow.add_task(Parameter("cpu_per_worker", default=14))
     flow.add_task(Parameter("gpu_per_worker", default=0))
 
     water_list = Parameter(name="water_list", default=[25906112, 25906127])
