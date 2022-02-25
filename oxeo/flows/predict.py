@@ -21,10 +21,10 @@ from oxeo.flows.utils import (
     data2gdf_task,
     fetch_water_list_task,
     get_all_paths_task,
+    get_job_id_task,
     get_waterbodies_task,
     parse_constellations_task,
     parse_water_list_task,
-    get_job_id_task
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
