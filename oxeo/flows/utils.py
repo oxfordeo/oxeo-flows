@@ -38,7 +38,7 @@ def parse_constellations_task(constellations: Union[str, list]) -> list[str]:
 
 
 @task(log_stdout=True)
-def parse_water_list(
+def parse_water_list_task(
     water_list: Union[str, int, list],
     postgis_password: str,
 ) -> tuple[int, ...]:
@@ -114,7 +114,7 @@ def data2gdf_task(
 
 
 @task(log_stdout=True)
-def gdf2geom(gdf):
+def gdf2geom_task(gdf):
     return gdf.unary_union
 
 

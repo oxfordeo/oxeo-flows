@@ -26,19 +26,19 @@ from shapely.geometry import MultiPolygon, Polygon
 
 import oxeo.flows.config as cfg
 from oxeo.flows.utils import (
-    data2gdf,
-    fetch_water_list,
-    gdf2geom,
-    get_job_id,
-    get_waterbodies,
-    parse_constellations,
-    parse_water_list,
+    data2gdf_task,
+    fetch_water_list_task,
+    gdf2geom_task,
+    get_job_id_task,
+    get_waterbodies_task,
+    parse_constellations_task,
+    parse_water_list_task,
 )
 from oxeo.water.models.utils import WaterBody
 
 
 @task(log_stdout=True)
-def get_storage_path(
+def get_storage_path_task(
     bucket: str,
     root_dir: str,
 ) -> str:
@@ -373,19 +373,19 @@ with Flow(
     chunk_size = Parameter(name="chunk_size", default=1000)
 
     # rename the Flow run to reflect the parameters
-    constellations = parse_constellations(constellations)
-    water_list = parse_water_list(water_list, postgis_password)
-    job_id = get_job_id()
+    constellations = parse_constellations_task(constellations)
+    water_list = parse_water_list_task(water_list, postgis_password)
+    job_id = get_job_id_task()
     # run_id = generate_run_id(water_list)
     # rename_flow_run(run_id)
 
     # get geom
-    db_data = fetch_water_list(water_list=water_list, password=postgis_password)
-    gdf = data2gdf(db_data)
-    aoi_geom = gdf2geom(gdf)
+    db_data = fetch_water_list_task(water_list=water_list, password=postgis_password)
+    gdf = data2gdf_task(db_data)
+    aoi_geom = gdf2geom_task(gdf)
 
     # run the flow
-    storage_path = get_storage_path(bucket, root_dir)
+    storage_path = get_storage_path_task(bucket, root_dir)
     built = build(project, gcp_region, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
@@ -429,7 +429,7 @@ with Flow(
         upstream_tasks=[deployed],
     )
 
-    waterbodies = get_waterbodies(gdf, bucket, constellations)
+    waterbodies = get_waterbodies_task(gdf,constellations)
     log_to_bq.map(
         waterbody=waterbodies,
         extraction_tasks=unmapped(extraction_tasks),
