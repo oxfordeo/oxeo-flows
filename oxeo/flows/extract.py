@@ -420,7 +420,7 @@ with Flow(
         upstream_tasks=[deployed],
     )
 
-    waterbodies = get_waterbodies_task(gdf,constellations)
+    waterbodies = get_waterbodies_task(gdf, constellations)
     log_to_bq.map(
         waterbody=waterbodies,
         extraction_tasks=unmapped(extraction_tasks),

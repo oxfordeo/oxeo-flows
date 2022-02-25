@@ -1,20 +1,20 @@
 from datetime import datetime
-from functools import partial
 from typing import Union
 
 import geopandas as gpd
 import prefect
 from prefect import task
 from prefect.tasks.postgres.postgres import PostgresFetch
-from pyproj import CRS
-from satextractor.models import Tile
 from satextractor.models.constellation_info import BAND_INFO
-from satextractor.tiler import split_region_in_utm_tiles
-from shapely import wkb
-from shapely.geometry import MultiPolygon, Polygon
 
 import oxeo.flows.config as cfg
-from oxeo.water.models.utils import TilePath, WaterBody, get_all_paths, get_waterbodies, data2gdf
+from oxeo.water.models.utils import (
+    TilePath,
+    WaterBody,
+    data2gdf,
+    get_all_paths,
+    get_waterbodies,
+)
 
 
 @task(log_stdout=True)

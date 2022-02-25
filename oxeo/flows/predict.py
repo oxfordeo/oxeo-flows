@@ -21,10 +21,10 @@ from oxeo.flows.utils import (
     data2gdf_task,
     fetch_water_list_task,
     get_all_paths_task,
-    get_job_id_task,
     get_waterbodies_task,
     parse_constellations_task,
     parse_water_list_task,
+    get_job_id_task
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
@@ -107,9 +107,7 @@ def create_masks(
             f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)} of {max_idx}"
         )
         revisit_masks = predictor.predict(
-            path,
-            revisit=slice(i, min(i + revisit_chunk_size, max_idx)),
-            fs=fs
+            path, revisit=slice(i, min(i + revisit_chunk_size, max_idx)), fs=fs
         )
         mask_list.append(revisit_masks)
     masks = np.vstack(mask_list)
@@ -408,7 +406,7 @@ with Flow(
         label=unmapped(timeseries_label),
         upstream_tasks=[unmapped(written_dates)],
     )
-    job_id = get_job_id()
+    job_id = get_job_id_task()
     log_to_bq.map(
         df=ts_dfs,
         waterbody=waterbodies,
