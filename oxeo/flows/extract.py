@@ -38,14 +38,6 @@ from oxeo.water.models.utils import WaterBody
 
 
 @task(log_stdout=True)
-def get_storage_path_task(
-    bucket: str,
-    root_dir: str,
-) -> str:
-    return f"gs://{bucket}/{root_dir}"
-
-
-@task(log_stdout=True)
 def build(
     project: str,
     gcp_region: str,
@@ -357,8 +349,7 @@ with Flow(
     project = Parameter(name="project", default="oxeo-main")
     gcp_region = Parameter(name="gcp_region", default="europe-west4")
     user_id = Parameter(name="user_id", default="oxeo")
-    bucket = Parameter(name="bucket", default="oxeo-water")
-    root_dir = Parameter(name="root_dir", default="prod")
+    root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
 
     start_date = Parameter(name="start_date", default="2020-01-01")
     end_date = Parameter(name="end_date", default="2020-02-01")
@@ -385,7 +376,7 @@ with Flow(
     aoi_geom = gdf2geom_task(gdf)
 
     # run the flow
-    storage_path = get_storage_path_task(bucket, root_dir)
+    storage_path = root_dir
     built = build(project, gcp_region, credentials, user_id)
     item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
     tiles = tiler(bbox_size, aoi_geom)
