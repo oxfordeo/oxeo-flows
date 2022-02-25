@@ -14,11 +14,11 @@ from shapely import wkb
 from shapely.geometry import MultiPolygon, Polygon
 
 import oxeo.flows.config as cfg
-from oxeo.water.models.utils import TilePath, WaterBody
+from oxeo.water.models.utils import TilePath, WaterBody, get_all_paths, get_waterbodies, data2gdf
 
 
 @task(log_stdout=True)
-def parse_constellations(constellations: Union[str, list]) -> list[str]:
+def parse_constellations_task(constellations: Union[str, list]) -> list[str]:
     logger = prefect.context.get("logger")
 
     all_constellations = list(BAND_INFO.keys()) + ["sentinel-1"]
@@ -57,7 +57,7 @@ def parse_water_list(
 
 
 @task
-def get_job_id() -> str:
+def get_job_id_task() -> str:
     flow_run_name = prefect.context.get("flow_run_name")
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
     job_id = f"{flow_run_name}_{timestamp}"
@@ -84,7 +84,7 @@ def fetch_chosen_water_list(
 
 
 @task(log_stdout=True)
-def fetch_water_list(
+def fetch_water_list_task(
     water_list: tuple[int],
     password: str,
 ) -> list[tuple[int, str, str]]:
@@ -107,14 +107,10 @@ def fetch_water_list(
 
 
 @task(log_stdout=True)
-def data2gdf(
+def data2gdf_task(
     data: list[tuple[int, str, str]],
 ) -> gpd.GeoDataFrame:
-    wkb_hex = partial(wkb.loads, hex=True)
-    gdf = gpd.GeoDataFrame(data, columns=["area_id", "name", "geometry"])
-    gdf.geometry = gdf.geometry.apply(wkb_hex)
-    gdf.crs = CRS.from_epsg(4326)
-    return gdf
+    return data2gdf(data)
 
 
 @task(log_stdout=True)
@@ -122,34 +118,14 @@ def gdf2geom(gdf):
     return gdf.unary_union
 
 
-def make_paths(bucket, tiles, constellations, root_dir):
-    return [
-        TilePath(tile=tile, constellation=cons, root=root_dir)
-        for tile in tiles
-        for cons in constellations
-    ]
-
-
-def get_tiles(
-    geom: Union[Polygon, MultiPolygon, gpd.GeoSeries, gpd.GeoDataFrame]
-) -> list[Tile]:
-    try:
-        geom = geom.unary_union
-    except AttributeError:
-        pass
-    return split_region_in_utm_tiles(region=geom, bbox_size=10000)
-
-
 @task(log_stdout=True)
-def get_all_paths(
+def get_all_paths_task(
     gdf: gpd.GeoDataFrame,
-    bucket: str,
     constellations: list[str],
-    root_dir: str = "prod",
+    root_dir: str = "gs://oxeo-water/prod",
 ) -> list[TilePath]:
     logger = prefect.context.get("logger")
-    all_tiles = get_tiles(gdf)
-    all_tilepaths = make_paths(bucket, all_tiles, constellations, root_dir)
+    all_tilepaths = get_all_paths(gdf, constellations, root_dir)
     logger.info(
         f"All tiles for the supplied geometry: {[t.path for t in all_tilepaths]}"
     )
@@ -157,21 +133,12 @@ def get_all_paths(
 
 
 @task(log_stdout=True)
-def get_waterbodies(
+def get_waterbodies_task(
     gdf: gpd.GeoDataFrame,
-    bucket: str,
     constellations: list[str],
-    root_dir: str = "prod",
+    root_dir: str = "gs://oxeo-water/prod",
 ) -> list[WaterBody]:
     logger = prefect.context.get("logger")
     logger.info("Getting separate tiles and paths for each waterbody")
-    waterbodies = []
-    for water in gdf.to_dict(orient="records"):
-        tiles = get_tiles(water["geometry"])
-        waterbodies.append(
-            WaterBody(
-                **water,
-                paths=make_paths(bucket, tiles, constellations, root_dir=root_dir),
-            )
-        )
+    waterbodies = get_waterbodies(gdf, constellations, root_dir)
     return waterbodies
