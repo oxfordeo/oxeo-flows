@@ -8,13 +8,9 @@ from prefect.tasks.postgres.postgres import PostgresFetch
 from satextractor.models.constellation_info import BAND_INFO
 
 import oxeo.flows.config as cfg
-from oxeo.water.models.utils import (
-    TilePath,
-    WaterBody,
-    data2gdf,
-    get_all_paths,
-    get_waterbodies,
-)
+from oxeo.core.models.data import data2gdf
+from oxeo.core.models.tile import TilePath, get_all_paths
+from oxeo.core.models.waterbody import WaterBody, get_waterbodies
 
 
 @task(log_stdout=True)

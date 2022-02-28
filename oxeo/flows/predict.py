@@ -17,6 +17,9 @@ from prefect.tasks.secrets import PrefectSecret
 from zarr.errors import ArrayNotFoundError
 
 import oxeo.flows.config as cfg
+from oxeo.core.models.tile import TilePath
+from oxeo.core.models.timeseries import merge_masks_all_constellations
+from oxeo.core.models.waterbody import WaterBody
 from oxeo.flows.utils import (
     data2gdf_task,
     fetch_water_list_task,
@@ -28,7 +31,6 @@ from oxeo.flows.utils import (
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
 @task(log_stdout=True)

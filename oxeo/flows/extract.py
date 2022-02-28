@@ -25,6 +25,7 @@ from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
 
 import oxeo.flows.config as cfg
+from oxeo.core.models.waterbody import WaterBody
 from oxeo.flows.utils import (
     data2gdf_task,
     fetch_water_list_task,
@@ -34,7 +35,6 @@ from oxeo.flows.utils import (
     parse_constellations_task,
     parse_water_list_task,
 )
-from oxeo.water.models.utils import WaterBody
 
 
 @task(log_stdout=True)
