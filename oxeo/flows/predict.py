@@ -17,18 +17,20 @@ from prefect.tasks.secrets import PrefectSecret
 from zarr.errors import ArrayNotFoundError
 
 import oxeo.flows.config as cfg
+from oxeo.core.models.tile import TilePath
+from oxeo.core.models.timeseries import merge_masks_all_constellations
+from oxeo.core.models.waterbody import WaterBody
 from oxeo.flows.utils import (
-    data2gdf,
-    fetch_water_list,
-    get_all_paths,
-    get_job_id,
-    get_waterbodies,
-    parse_constellations,
-    parse_water_list,
+    data2gdf_task,
+    fetch_water_list_task,
+    get_all_paths_task,
+    get_job_id_task,
+    get_waterbodies_task,
+    parse_constellations_task,
+    parse_water_list_task,
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models import model_factory
-from oxeo.water.models.utils import TilePath, WaterBody, merge_masks_all_constellations
 
 
 @task(log_stdout=True)
@@ -107,8 +109,7 @@ def create_masks(
             f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)} of {max_idx}"
         )
         revisit_masks = predictor.predict(
-            path,
-            revisit=slice(i, min(i + revisit_chunk_size, max_idx)),
+            path, revisit=slice(i, min(i + revisit_chunk_size, max_idx)), fs=fs
         )
         mask_list.append(revisit_masks)
     masks = np.vstack(mask_list)
@@ -346,8 +347,7 @@ with Flow(
 
     credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
     project = Parameter(name="project", default="oxeo-main")
-    bucket = Parameter(name="bucket", default="oxeo-water")
-    root_dir = Parameter(name="root_dir", default="prod")
+    root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
 
     overwrite = Parameter(name="overwrite", default=False)
     start_date = Parameter(name="start_date", default="1984-01-01")
@@ -367,15 +367,15 @@ with Flow(
     revisit_chunk_size = Parameter(name="revisit_chunk_size", default=8)
 
     # rename the Flow run to reflect the parameters
-    constellations = parse_constellations(constellations)
-    water_list = parse_water_list(water_list, postgis_password)
+    constellations = parse_constellations_task(constellations)
+    water_list = parse_water_list_task(water_list, postgis_password)
 
     # get geom
-    db_data = fetch_water_list(water_list=water_list, password=postgis_password)
-    gdf = data2gdf(db_data)
+    db_data = fetch_water_list_task(water_list=water_list, password=postgis_password)
+    gdf = data2gdf_task(db_data)
 
     # start processing
-    all_paths = get_all_paths(gdf, bucket, constellations, root_dir)
+    all_paths = get_all_paths_task(gdf, constellations, root_dir)
 
     # create_masks() is mapped in parallel across all the paths
     # the returned masks is an empty list purely for the DAG
@@ -396,7 +396,7 @@ with Flow(
 
     # now instead of mapping across all paths, we map across
     # individual lakes
-    waterbodies = get_waterbodies(gdf, bucket, constellations, root_dir)
+    waterbodies = get_waterbodies_task(gdf, constellations, root_dir)
     written_dates_mapping = get_written_dates_per_waterbody(
         all_paths=all_paths,
         written_dates=written_dates,
@@ -408,7 +408,7 @@ with Flow(
         label=unmapped(timeseries_label),
         upstream_tasks=[unmapped(written_dates)],
     )
-    job_id = get_job_id()
+    job_id = get_job_id_task()
     log_to_bq.map(
         df=ts_dfs,
         waterbody=waterbodies,
