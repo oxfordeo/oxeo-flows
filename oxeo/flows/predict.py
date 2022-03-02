@@ -1,10 +1,8 @@
 from datetime import datetime
 
 import gcsfs
-import numpy as np
 import pandas as pd
 import prefect
-import zarr
 from dask_kubernetes import KubeCluster, make_pod_spec
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
@@ -14,10 +12,9 @@ from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from zarr.errors import ArrayNotFoundError
 
 import oxeo.flows.config as cfg
-from oxeo.core.models.tile import TilePath
+from oxeo.core.models.tile import TilePath, predict_tile
 from oxeo.core.models.timeseries import merge_masks_all_constellations
 from oxeo.core.models.waterbody import WaterBody
 from oxeo.flows.utils import (
@@ -30,7 +27,7 @@ from oxeo.flows.utils import (
     parse_water_list_task,
 )
 from oxeo.water.metrics import metrics
-from oxeo.water.models import model_factory
+from oxeo.water.models.factory import model_factory
 
 
 @task(log_stdout=True)
@@ -54,51 +51,6 @@ def create_masks(
 
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
 
-    # get revisits shape from timestamps
-    timestamps = zarr.open(fs.get_mapper(path.timestamps_path), "r")[:]
-    timestamps = np.array(
-        [np.datetime64(datetime.fromisoformat(el)) for el in timestamps],
-    )
-
-    sdt = np.datetime64(datetime.strptime(start_date, "%Y-%m-%d"))
-    edt = np.datetime64(datetime.strptime(end_date, "%Y-%m-%d"))
-
-    date_overlap = np.where((timestamps >= sdt) & (timestamps <= edt))[0]
-    min_idx = date_overlap.min()
-    max_idx = date_overlap.max() + 1
-    logger.info(f"From overlap with imagery and dates entered: {min_idx=}, {max_idx=}")
-
-    mask_path = f"{path.mask_path}/{model_name}"
-    mask_mapper = fs.get_mapper(mask_path)
-
-    if not overwrite:
-        # check existing masks and only do new ones
-        try:
-            mask_arr = zarr.open_array(mask_mapper, "r")
-            prev_max_idx = int(mask_arr.attrs["max_filled"])
-            min_idx = prev_max_idx + 1
-            logger.warning(f"Found {prev_max_idx=}, set {min_idx=}")
-        except ArrayNotFoundError:
-            logger.warning("Set overwrite=False, but there was no existing array")
-        except KeyError:
-            logger.warning(
-                "Set overwrite=False, but attrs['max_filled'] had not been set"
-            )
-
-    if min_idx >= max_idx:
-        logger.warning("min_idx is >= max_idx: nothing to do, skipping")
-        # TODO This should rather return the last date IN the array
-        # Otherwise this will always just be 2100-01-01 or something
-        return end_date, end_date
-
-    gpu = prefect.context.parameters["gpu_per_worker"]
-    if gpu > 0:
-        import torch
-
-        cuda = torch.cuda.is_available()
-        logger.info(f"CUDA available: {cuda}")
-
-    logger.info("Loading model")
     predictor = model_factory(model_name).predictor(
         ckpt_path=ckpt_path,
         fs=fs,
@@ -107,42 +59,20 @@ def create_masks(
         target_size=target_size,
     )
 
-    mask_list = []
-    for i in range(min_idx, max_idx, revisit_chunk_size):
-        logger.info(
-            f"creating mask for {path.path}, revisits {i} to "
-            f"{min(i + revisit_chunk_size,max_idx)} of {max_idx}"
-        )
-        revisit_masks = predictor.predict(
-            path, revisit=slice(i, min(i + revisit_chunk_size, max_idx)), fs=fs
-        )
-        mask_list.append(revisit_masks)
-    masks = np.vstack(mask_list)
-
-    # open as 'append' -> create if doesn't exist
-    time_shape = timestamps.shape[0]
-    geo_shape = masks.shape[1:]
-    output_shape = (time_shape, *geo_shape)
-    logger.info(f"Saving mask to {mask_path}")
-    logger.info(f"Output zarr shape: {output_shape}")
-
-    mask_arr = zarr.open_array(
-        mask_mapper,
-        "a",
-        shape=output_shape,
-        chunks=(1, 1000, 1000),
-        dtype=np.uint8,
+    gpu = prefect.context.parameters["gpu_per_worker"]
+    written_start, written_end = predict_tile(
+        path,
+        model_name,
+        predictor,
+        revisit_chunk_size,
+        start_date,
+        end_date,
+        fs,
+        overwrite=overwrite,
+        gpu=gpu,
     )
-    mask_arr.resize(*output_shape)
-    mask_arr.attrs["max_filled"] = int(max_idx)
 
-    # write data to archive
-    mask_arr[min_idx:max_idx, ...] = masks
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
-
-    written_start = np.datetime_as_string(timestamps[min_idx], unit="D")
-    written_end = np.datetime_as_string(timestamps[max_idx - 1], unit="D")
-
     return written_start, written_end
 
 
@@ -343,10 +273,10 @@ run_config = KubernetesRun(
 # pollute global namespace
 with Flow(
     "predict",
-    executor=executor,
-    storage=storage,
-    run_config=run_config,
-    schedule=schedule,
+    # executor=executor,
+    # storage=storage,
+    # run_config=run_config,
+    # schedule=schedule,
 ) as flow:
     # secrets
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
