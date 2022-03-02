@@ -52,21 +52,7 @@ def create_masks(
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
-    gpu = prefect.context.parameters["gpu_per_worker"]
-    if gpu > 0:
-        import torch
-
-        cuda = torch.cuda.is_available()
-        logger.info(f"CUDA available: {cuda}")
-
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
-    predictor = model_factory(model_name).predictor(
-        ckpt_path=ckpt_path,
-        fs=fs,
-        batch_size=cnn_batch_size,
-        bands=bands,
-        target_size=target_size,
-    )
 
     # get revisits shape from timestamps
     timestamps = zarr.open(fs.get_mapper(path.timestamps_path), "r")[:]
@@ -101,12 +87,31 @@ def create_masks(
 
     if min_idx >= max_idx:
         logger.warning("min_idx is >= max_idx: nothing to do, skipping")
+        # TODO This should rather return the last date IN the array
+        # Otherwise this will always just be 2100-01-01 or something
         return end_date, end_date
+
+    gpu = prefect.context.parameters["gpu_per_worker"]
+    if gpu > 0:
+        import torch
+
+        cuda = torch.cuda.is_available()
+        logger.info(f"CUDA available: {cuda}")
+
+    logger.info("Loading model")
+    predictor = model_factory(model_name).predictor(
+        ckpt_path=ckpt_path,
+        fs=fs,
+        batch_size=cnn_batch_size,
+        bands=bands,
+        target_size=target_size,
+    )
 
     mask_list = []
     for i in range(min_idx, max_idx, revisit_chunk_size):
         logger.info(
-            f"creating mask for {path.path}, revisits {i} to {min(i + revisit_chunk_size,max_idx)} of {max_idx}"
+            f"creating mask for {path.path}, revisits {i} to "
+            f"{min(i + revisit_chunk_size,max_idx)} of {max_idx}"
         )
         revisit_masks = predictor.predict(
             path, revisit=slice(i, min(i + revisit_chunk_size, max_idx)), fs=fs
@@ -173,11 +178,14 @@ def merge_to_timeseries(
     label: int,
 ) -> pd.DataFrame:
     logger = prefect.context.get("logger")
-    logger.info(f"Merge all masks in {waterbody.paths}")
+    logger.info(
+        f"Merge all masks in {[(tp.tile.id, tp.constellation) for tp in waterbody.paths]}"
+    )
     timeseries_masks = merge_masks_all_constellations(
         waterbody=waterbody,
         mask=mask,
     )
+
     df = metrics.segmentation_area_multiple(timeseries_masks, waterbody, label)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
@@ -200,6 +208,9 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
     tiles = list({p.tile.id for p in waterbody.paths})
+
+    # TODO
+    # Only log df data that is within written_dates!
 
     written_start, written_end = written_dates_mapping[waterbody.area_id]
     logger.warning(f"Got {written_start=}, {written_end=} from mapping")
@@ -326,6 +337,10 @@ run_config = KubernetesRun(
     image=cfg.docker_oxeo_flows,
     env=env,
 )
+
+# TODO
+# This should be moved to a function to not
+# pollute global namespace
 with Flow(
     "predict",
     executor=executor,
@@ -378,7 +393,6 @@ with Flow(
     all_paths = get_all_paths_task(gdf, constellations, root_dir)
 
     # create_masks() is mapped in parallel across all the paths
-    # the returned masks is an empty list purely for the DAG
     written_dates = create_masks.map(
         path=all_paths,
         model_name=unmapped(model_name),
