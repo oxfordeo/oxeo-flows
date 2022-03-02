@@ -123,7 +123,7 @@ def get_all_paths_task(
     logger = prefect.context.get("logger")
     all_tilepaths = get_all_paths(gdf, constellations, root_dir)
     logger.info(
-        f"All tiles for the supplied geometry: {[t.path for t in all_tilepaths]}"
+        f"All tiles for the supplied geometry: {[(tp.tile.id, tp.constellation) for tp in all_tilepaths]}"
     )
     return all_tilepaths
 
