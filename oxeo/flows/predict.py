@@ -274,10 +274,10 @@ run_config = KubernetesRun(
 # pollute global namespace
 with Flow(
     "predict",
-    # executor=executor,
-    # storage=storage,
-    # run_config=run_config,
-    # schedule=schedule,
+    executor=executor,
+    storage=storage,
+    run_config=run_config,
+    schedule=schedule,
 ) as flow:
     # secrets
     postgis_password = PrefectSecret("POSTGIS_PASSWORD")
