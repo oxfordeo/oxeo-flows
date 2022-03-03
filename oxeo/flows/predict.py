@@ -26,7 +26,7 @@ from oxeo.flows.utils import (
     parse_constellations_task,
     parse_water_list_task,
 )
-from oxeo.water.metrics import metrics
+from oxeo.water.metrics import seg_area_all
 from oxeo.water.models.factory import model_factory
 from oxeo.water.models.tile_utils import predict_tile
 
@@ -117,7 +117,7 @@ def merge_to_timeseries(
         mask=mask,
     )
 
-    df = metrics.segmentation_area_multiple(timeseries_masks, waterbody, label)
+    df = seg_area_all(timeseries_masks, waterbody, label)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
