@@ -14,7 +14,7 @@ from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 
 import oxeo.flows.config as cfg
-from oxeo.core.models.tile import TilePath, predict_tile
+from oxeo.core.models.tile import TilePath
 from oxeo.core.models.timeseries import merge_masks_all_constellations
 from oxeo.core.models.waterbody import WaterBody
 from oxeo.flows.utils import (
@@ -28,6 +28,7 @@ from oxeo.flows.utils import (
 )
 from oxeo.water.metrics import metrics
 from oxeo.water.models.factory import model_factory
+from oxeo.water.models.tile_utils import predict_tile
 
 
 @task(log_stdout=True)
