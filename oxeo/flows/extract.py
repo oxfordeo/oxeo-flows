@@ -236,7 +236,7 @@ def check_deploy_completion(
         if done >= tot:
             logger.info(f"All {done} of {tot} extraction tasks done!")
             return True
-        elif done >= prev_done:
+        elif done > prev_done:
             loops_unchanged = 0
         else:
             loops_unchanged += 1
