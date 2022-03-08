@@ -46,6 +46,7 @@ def create_masks(
     end_date: str,
     overwrite: bool,
 ) -> tuple[str, str]:
+    return "2000-01-01", "2000-01-01"
     logger = prefect.context.get("logger")
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
