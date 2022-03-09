@@ -103,7 +103,7 @@ storage = GitHub(
 run_config = KubernetesRun(image=image, env=env)
 with Flow(
     "dask_issue",
-    executor=executor,
+    # executor=executor,
     storage=storage,
     run_config=run_config,
 ) as flow:
