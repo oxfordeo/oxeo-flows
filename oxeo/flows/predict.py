@@ -78,7 +78,7 @@ def create_masks(
     return written_start, written_end
 
 
-@task(state_handlers=[slack_notifier])
+@task
 def get_written_dates_per_waterbody(
     all_paths: list[TilePath],
     written_dates: list[tuple[str, str]],
@@ -131,7 +131,7 @@ def merge_to_timeseries(
     return df
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def log_to_bq(
     df: pd.DataFrame,
     waterbody: WaterBody,

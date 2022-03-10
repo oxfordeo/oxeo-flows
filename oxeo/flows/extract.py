@@ -38,7 +38,7 @@ from oxeo.flows.utils import (
 )
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def build(
     project: str,
     gcp_region: str,
@@ -82,7 +82,7 @@ def build(
     return True
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def stac(
     credentials: Path,
     start_date: str,
@@ -104,7 +104,7 @@ def stac(
     return item_collection
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def tiler(
     bbox_size: int,
     region: Union[Polygon, MultiPolygon],
@@ -119,7 +119,7 @@ def tiler(
     return tiles
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def scheduler(
     constellations: list[str],
     tiles: list[Tile],
@@ -149,7 +149,7 @@ def scheduler(
     return extraction_tasks
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def preparer(
     credentials: Path,
     constellations: list[str],
@@ -176,7 +176,7 @@ def preparer(
     )
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def deployer(
     job_id: str,
     project: str,
@@ -200,7 +200,7 @@ def deployer(
     )
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def copy_metadata(
     credentials: str,
     extraction_tasks: list[ExtractionTask],
@@ -252,7 +252,7 @@ def check_deploy_completion(
         time.sleep(sleep)
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def log_to_bq(
     waterbody: WaterBody,
     extraction_tasks: list[ExtractionTask],
