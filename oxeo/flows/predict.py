@@ -106,6 +106,7 @@ def get_written_dates_per_waterbody(
 @task(log_stdout=True, state_handlers=[slack_notifier])
 def merge_to_timeseries(
     waterbody: WaterBody,
+    overwrite: bool,
     written_dates_mapping: dict[int, tuple[str, str]],
     model_name: str,
     label: int,
@@ -118,10 +119,13 @@ def merge_to_timeseries(
         waterbody=waterbody, mask=model_name
     )
 
-    written_start, _ = written_dates_mapping[waterbody.area_id]
-    logger.warning(f"Get seg area, starting at data {written_start=}")
+    if overwrite:
+        start_date = "1980-01-01"
+    else:
+        start_date, _ = written_dates_mapping[waterbody.area_id]
+    logger.warning(f"Get seg area, starting at data {start_date=}")
 
-    df = seg_area_all(timeseries_masks, waterbody, written_start, label)
+    df = seg_area_all(timeseries_masks, waterbody, start_date, label)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
@@ -294,6 +298,7 @@ def create_flow():
         root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
 
         overwrite = Parameter(name="overwrite", default=False)
+        overwrite_scalar = Parameter(name="overwrite_scalar", default=False)
         start_date = Parameter(name="start_date", default="1984-01-01")
         end_date = Parameter(name="end_date", default="2100-02-01")
 
@@ -349,6 +354,7 @@ def create_flow():
         )
         ts_dfs = merge_to_timeseries.map(
             waterbody=waterbodies,
+            overwrite=unmapped(overwrite_scalar),
             written_dates_mapping=unmapped(written_dates_mapping),
             model_name=unmapped(model_name),
             label=unmapped(timeseries_label),
@@ -358,7 +364,7 @@ def create_flow():
             df=ts_dfs,
             waterbody=waterbodies,
             job_id=unmapped(job_id),
-            overwrite=unmapped(overwrite),
+            overwrite=unmapped(overwrite_scalar),
             start_date=unmapped(start_date),
             end_date=unmapped(end_date),
             written_dates_mapping=unmapped(written_dates_mapping),
