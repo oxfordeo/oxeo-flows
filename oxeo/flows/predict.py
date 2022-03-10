@@ -31,7 +31,7 @@ from oxeo.water.models.factory import model_factory
 from oxeo.water.models.tile_utils import predict_tile
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def create_masks(
     path: TilePath,
     model_name: str,
@@ -102,7 +102,7 @@ def get_written_dates_per_waterbody(
     return waterbody_dates_mapping
 
 
-@task(log_stdout=True, state_handlers=[slack_notifier])
+@task(log_stdout=True)
 def merge_to_timeseries(
     waterbody: WaterBody,
     overwrite: bool,
@@ -130,7 +130,7 @@ def merge_to_timeseries(
     return df
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def log_to_bq(
     df: pd.DataFrame,
     waterbody: WaterBody,
