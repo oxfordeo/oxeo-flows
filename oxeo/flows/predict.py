@@ -226,8 +226,7 @@ def dynamic_cluster(**kwargs):
         }
     }
 
-    # TODO: Always use GPU image
-    image = cfg.docker_oxeo_flows_gpu if gpu > 0 else cfg.docker_oxeo_flows
+    image = cfg.docker_oxeo_flows_gpu
 
     pod_spec = make_pod_spec(
         image=image,
@@ -267,7 +266,7 @@ def create_flow():
         access_token_secret=cfg.prefect_secret_github_token,
     )
     run_config = KubernetesRun(
-        image=cfg.docker_oxeo_flows,
+        image=cfg.docker_oxeo_flows_gpu,
         env=env,
     )
 
