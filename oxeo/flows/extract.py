@@ -15,6 +15,7 @@ from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from prefect.utilities.notifications import slack_notifier
 from satextractor.deployer import deploy_tasks
 from satextractor.models import ExtractionTask, Tile
 from satextractor.plugins import copy_mtl_files
@@ -37,7 +38,7 @@ from oxeo.flows.utils import (
 )
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def build(
     project: str,
     gcp_region: str,
@@ -81,7 +82,7 @@ def build(
     return True
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def stac(
     credentials: Path,
     start_date: str,
@@ -103,7 +104,7 @@ def stac(
     return item_collection
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def tiler(
     bbox_size: int,
     region: Union[Polygon, MultiPolygon],
@@ -118,7 +119,7 @@ def tiler(
     return tiles
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def scheduler(
     constellations: list[str],
     tiles: list[Tile],
@@ -148,7 +149,7 @@ def scheduler(
     return extraction_tasks
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def preparer(
     credentials: Path,
     constellations: list[str],
@@ -175,7 +176,7 @@ def preparer(
     )
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def deployer(
     job_id: str,
     project: str,
@@ -199,7 +200,7 @@ def deployer(
     )
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def copy_metadata(
     credentials: str,
     extraction_tasks: list[ExtractionTask],
@@ -210,7 +211,7 @@ def copy_metadata(
     copy_mtl_files(credentials, extraction_tasks, storage_path)
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def check_deploy_completion(
     project: str,
     user_id: str,
@@ -251,7 +252,7 @@ def check_deploy_completion(
         time.sleep(sleep)
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def log_to_bq(
     waterbody: WaterBody,
     extraction_tasks: list[ExtractionTask],
@@ -311,126 +312,135 @@ def log_to_bq(
         )
 
 
-clock_params = dict(
-    water_list="chosen",
-    start_date="1980-01-01",
-    end_date="2100-01-01",
-)
-clock = CronClock("45 8 * * 1", parameter_defaults=clock_params)
-schedule = Schedule(clocks=[clock])
-
-executor = DaskExecutor()
-storage = GitHub(
-    repo=cfg.repo_name,
-    path="oxeo/flows/extract.py",
-    access_token_secret=cfg.prefect_secret_github_token,
-)
-run_config = KubernetesRun(
-    image=cfg.docker_oxeo_flows,
-    cpu_request=8,
-    memory_request="32Gi",
-)
-with Flow(
-    "extract",
-    executor=executor,
-    storage=storage,
-    run_config=run_config,
-    schedule=schedule,
-) as flow:
-    # secrets
-    postgis_password = PrefectSecret("POSTGIS_PASSWORD")
-
-    # parameters
-    water_list = Parameter(
-        name="water_list", required=True, default=[25906112, 25906127]
+def create_flow():
+    clock_params = dict(
+        water_list="chosen",
+        start_date="1980-01-01",
+        end_date="2100-01-01",
     )
+    clock = CronClock("45 8 * * 1", parameter_defaults=clock_params)
+    schedule = Schedule(clocks=[clock])
 
-    credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
-    project = Parameter(name="project", default="oxeo-main")
-    gcp_region = Parameter(name="gcp_region", default="europe-west4")
-    user_id = Parameter(name="user_id", default="oxeo")
-    root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
-
-    start_date = Parameter(name="start_date", default="2020-01-01")
-    end_date = Parameter(name="end_date", default="2020-02-01")
-    constellations = Parameter(
-        name="constellations",
-        default=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
+    executor = DaskExecutor()
+    storage = GitHub(
+        repo=cfg.repo_name,
+        path="oxeo/flows/extract.py",
+        access_token_secret=cfg.prefect_secret_github_token,
     )
-    overwrite = Parameter(name="overwrite", default=False)
-
-    bbox_size = Parameter(name="bbox_size", default=10000)
-    split_m = Parameter(name="split_m", default=100000)
-    chunk_size = Parameter(name="chunk_size", default=1000)
-
-    # rename the Flow run to reflect the parameters
-    constellations = parse_constellations_task(constellations)
-    water_list = parse_water_list_task(water_list, postgis_password)
-    job_id = get_job_id_task()
-    # run_id = generate_run_id(water_list)
-    # rename_flow_run(run_id)
-
-    # get geom
-    db_data = fetch_water_list_task(water_list=water_list, password=postgis_password)
-    gdf = data2gdf_task(db_data)
-    aoi_geom = gdf2geom_task(gdf)
-
-    # run the flow
-    storage_path = root_dir
-    built = build(project, gcp_region, credentials, user_id)
-    item_collection = stac(credentials, start_date, end_date, constellations, aoi_geom)
-    tiles = tiler(bbox_size, aoi_geom)
-    extraction_tasks = scheduler(
-        constellations,
-        tiles,
-        item_collection,
-        split_m,
-        overwrite,
-        storage_path,
-        project,
-        credentials,
+    run_config = KubernetesRun(
+        image=cfg.docker_oxeo_flows,
+        cpu_request=8,
+        memory_request="32Gi",
     )
-    prepped = preparer(
-        credentials,
-        constellations,
-        storage_path,
-        bbox_size,
-        chunk_size,
-        tiles,
-        extraction_tasks,
-        overwrite,
-    )
-    deployed = deployer(
-        job_id,
-        project,
-        user_id,
-        credentials,
-        storage_path,
-        chunk_size,
-        extraction_tasks,
-        upstream_tasks=[built, prepped],
-    )
-    copy_metadata(credentials, extraction_tasks, storage_path)
+    with Flow(
+        "extract",
+        executor=executor,
+        storage=storage,
+        run_config=run_config,
+        schedule=schedule,
+    ) as flow:
+        # secrets
+        postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
-    complete = check_deploy_completion(
-        project,
-        user_id,
-        job_id,
-        extraction_tasks,
-        upstream_tasks=[deployed],
-    )
+        # parameters
+        water_list = Parameter(
+            name="water_list", required=True, default=[25906112, 25906127]
+        )
 
-    waterbodies = get_waterbodies_task(gdf, constellations)
-    log_to_bq.map(
-        waterbody=waterbodies,
-        extraction_tasks=unmapped(extraction_tasks),
-        job_id=unmapped(job_id),
-        start_date=unmapped(start_date),
-        end_date=unmapped(end_date),
-        constellations=unmapped(constellations),
-        bbox_size=unmapped(bbox_size),
-        split_m=unmapped(split_m),
-        chunk_size=unmapped(chunk_size),
-        overwrite=unmapped(overwrite),
-        upstream_tasks=[unmapped(complete)],
-    )
+        credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
+        project = Parameter(name="project", default="oxeo-main")
+        gcp_region = Parameter(name="gcp_region", default="europe-west4")
+        user_id = Parameter(name="user_id", default="oxeo")
+        root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
+
+        start_date = Parameter(name="start_date", default="2020-01-01")
+        end_date = Parameter(name="end_date", default="2020-02-01")
+        constellations = Parameter(
+            name="constellations",
+            default=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
+        )
+        overwrite = Parameter(name="overwrite", default=False)
+
+        bbox_size = Parameter(name="bbox_size", default=10000)
+        split_m = Parameter(name="split_m", default=100000)
+        chunk_size = Parameter(name="chunk_size", default=1000)
+
+        # rename the Flow run to reflect the parameters
+        constellations = parse_constellations_task(constellations)
+        water_list = parse_water_list_task(water_list, postgis_password)
+        job_id = get_job_id_task()
+        # run_id = generate_run_id(water_list)
+        # rename_flow_run(run_id)
+
+        # get geom
+        db_data = fetch_water_list_task(
+            water_list=water_list, password=postgis_password
+        )
+        gdf = data2gdf_task(db_data)
+        aoi_geom = gdf2geom_task(gdf)
+
+        # run the flow
+        storage_path = root_dir
+        built = build(project, gcp_region, credentials, user_id)
+        item_collection = stac(
+            credentials, start_date, end_date, constellations, aoi_geom
+        )
+        tiles = tiler(bbox_size, aoi_geom)
+        extraction_tasks = scheduler(
+            constellations,
+            tiles,
+            item_collection,
+            split_m,
+            overwrite,
+            storage_path,
+            project,
+            credentials,
+        )
+        prepped = preparer(
+            credentials,
+            constellations,
+            storage_path,
+            bbox_size,
+            chunk_size,
+            tiles,
+            extraction_tasks,
+            overwrite,
+        )
+        deployed = deployer(
+            job_id,
+            project,
+            user_id,
+            credentials,
+            storage_path,
+            chunk_size,
+            extraction_tasks,
+            upstream_tasks=[built, prepped],
+        )
+        copy_metadata(credentials, extraction_tasks, storage_path)
+
+        complete = check_deploy_completion(
+            project,
+            user_id,
+            job_id,
+            extraction_tasks,
+            upstream_tasks=[deployed],
+        )
+
+        waterbodies = get_waterbodies_task(gdf, constellations)
+        log_to_bq.map(
+            waterbody=waterbodies,
+            extraction_tasks=unmapped(extraction_tasks),
+            job_id=unmapped(job_id),
+            start_date=unmapped(start_date),
+            end_date=unmapped(end_date),
+            constellations=unmapped(constellations),
+            bbox_size=unmapped(bbox_size),
+            split_m=unmapped(split_m),
+            chunk_size=unmapped(chunk_size),
+            overwrite=unmapped(overwrite),
+            upstream_tasks=[unmapped(complete)],
+        )
+    return flow
+
+
+flow = create_flow()

@@ -12,6 +12,7 @@ from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from prefect.utilities.notifications import slack_notifier
 
 import oxeo.flows.config as cfg
 from oxeo.core.models.tile import TilePath
@@ -31,7 +32,7 @@ from oxeo.water.models.factory import model_factory
 from oxeo.water.models.tile_utils import predict_tile
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def create_masks(
     path: TilePath,
     model_name: str,
@@ -77,7 +78,7 @@ def create_masks(
     return written_start, written_end
 
 
-@task
+@task(state_handlers=[slack_notifier])
 def get_written_dates_per_waterbody(
     all_paths: list[TilePath],
     written_dates: list[tuple[str, str]],
@@ -102,7 +103,7 @@ def get_written_dates_per_waterbody(
     return waterbody_dates_mapping
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def merge_to_timeseries(
     waterbody: WaterBody,
     mask: str,
@@ -123,7 +124,7 @@ def merge_to_timeseries(
     return df
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, state_handlers=[slack_notifier])
 def log_to_bq(
     df: pd.DataFrame,
     waterbody: WaterBody,
@@ -243,126 +244,130 @@ def dynamic_cluster(**kwargs):
     )
 
 
-clock_params = dict(
-    water_list="chosen",
-    constellations=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
-    start_date="1980-01-01",
-    end_date="2100-01-01",
-    gpu_per_worker=1,
-    n_workers=2,
-)
-clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
-schedule = Schedule(clocks=[clock])
-
-executor = DaskExecutor(
-    cluster_class=dynamic_cluster,
-    adapt_kwargs={"maximum": 80},
-    cluster_kwargs={},
-)
-storage = GitHub(
-    repo=cfg.repo_name,
-    path="oxeo/flows/predict.py",
-    access_token_secret=cfg.prefect_secret_github_token,
-)
-run_config = KubernetesRun(
-    image=cfg.docker_oxeo_flows,
-    env=env,
-)
-
-# TODO
-# This should be moved to a function to not
-# pollute global namespace
-with Flow(
-    "predict",
-    executor=executor,
-    storage=storage,
-    run_config=run_config,
-    schedule=schedule,
-) as flow:
-    # secrets
-    postgis_password = PrefectSecret("POSTGIS_PASSWORD")
-
-    # parameters
-    flow.add_task(Parameter("n_workers", default=1))
-    flow.add_task(Parameter("memory_per_worker", default="56G"))
-    flow.add_task(Parameter("cpu_per_worker", default=14))
-    flow.add_task(Parameter("gpu_per_worker", default=0))
-
-    water_list = Parameter(name="water_list", default=[25906112, 25906127])
-    model_name = Parameter(name="model_name", default="cnn")
-
-    credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
-    project = Parameter(name="project", default="oxeo-main")
-    root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
-
-    overwrite = Parameter(name="overwrite", default=False)
-    start_date = Parameter(name="start_date", default="1984-01-01")
-    end_date = Parameter(name="end_date", default="2100-02-01")
-
-    constellations = Parameter(name="constellations", default=["sentinel-2"])
-    ckpt_path = Parameter(
-        name="cktp_path", default="gs://oxeo-models/semseg/epoch_012.ckpt"
+def create_flow():
+    clock_params = dict(
+        water_list="chosen",
+        constellations=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
+        start_date="1980-01-01",
+        end_date="2100-01-01",
+        gpu_per_worker=1,
+        n_workers=2,
     )
-    target_size = Parameter(name="target_size", default=1000)
-    bands = Parameter(
-        name="bands", default=["nir", "red", "green", "blue", "swir1", "swir2"]
+    clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
+    schedule = Schedule(clocks=[clock])
+
+    executor = DaskExecutor(
+        cluster_class=dynamic_cluster,
+        adapt_kwargs={"maximum": 80},
+        cluster_kwargs={},
     )
-    timeseries_label = Parameter(name="timeseries_label", default=1)
-
-    cnn_batch_size = Parameter(name="cnn_batch_size", default=32)
-    revisit_chunk_size = Parameter(name="revisit_chunk_size", default=8)
-
-    # rename the Flow run to reflect the parameters
-    constellations = parse_constellations_task(constellations)
-    water_list = parse_water_list_task(water_list, postgis_password)
-
-    # get geom
-    db_data = fetch_water_list_task(water_list=water_list, password=postgis_password)
-    gdf = data2gdf_task(db_data)
-
-    # start processing
-    all_paths = get_all_paths_task(gdf, constellations, root_dir)
-
-    # create_masks() is mapped in parallel across all the paths
-    written_dates = create_masks.map(
-        path=all_paths,
-        model_name=unmapped(model_name),
-        project=unmapped(project),
-        credentials=unmapped(credentials),
-        ckpt_path=unmapped(ckpt_path),
-        target_size=unmapped(target_size),
-        bands=unmapped(bands),
-        cnn_batch_size=unmapped(cnn_batch_size),
-        revisit_chunk_size=unmapped(revisit_chunk_size),
-        overwrite=unmapped(overwrite),
-        start_date=unmapped(start_date),
-        end_date=unmapped(end_date),
+    storage = GitHub(
+        repo=cfg.repo_name,
+        path="oxeo/flows/predict.py",
+        access_token_secret=cfg.prefect_secret_github_token,
+    )
+    run_config = KubernetesRun(
+        image=cfg.docker_oxeo_flows,
+        env=env,
     )
 
-    # now instead of mapping across all paths, we map across
-    # individual lakes
-    waterbodies = get_waterbodies_task(gdf, constellations, root_dir)
-    written_dates_mapping = get_written_dates_per_waterbody(
-        all_paths=all_paths,
-        written_dates=written_dates,
-        waterbodies=waterbodies,
-    )
-    ts_dfs = merge_to_timeseries.map(
-        waterbody=waterbodies,
-        mask=unmapped(model_name),
-        label=unmapped(timeseries_label),
-        upstream_tasks=[unmapped(written_dates)],
-    )
-    job_id = get_job_id_task()
-    log_to_bq.map(
-        df=ts_dfs,
-        waterbody=waterbodies,
-        job_id=unmapped(job_id),
-        overwrite=unmapped(overwrite),
-        start_date=unmapped(start_date),
-        end_date=unmapped(end_date),
-        written_dates_mapping=unmapped(written_dates_mapping),
-        model_name=unmapped(model_name),
-        ckpt_path=unmapped(ckpt_path),
-        constellations=unmapped(constellations),
-    )
+    with Flow(
+        "predict",
+        executor=executor,
+        storage=storage,
+        run_config=run_config,
+        schedule=schedule,
+    ) as flow:
+        # secrets
+        postgis_password = PrefectSecret("POSTGIS_PASSWORD")
+
+        # parameters
+        flow.add_task(Parameter("n_workers", default=1))
+        flow.add_task(Parameter("memory_per_worker", default="56G"))
+        flow.add_task(Parameter("cpu_per_worker", default=14))
+        flow.add_task(Parameter("gpu_per_worker", default=0))
+
+        water_list = Parameter(name="water_list", default=[25906112, 25906127])
+        model_name = Parameter(name="model_name", default="cnn")
+
+        credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
+        project = Parameter(name="project", default="oxeo-main")
+        root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
+
+        overwrite = Parameter(name="overwrite", default=False)
+        start_date = Parameter(name="start_date", default="1984-01-01")
+        end_date = Parameter(name="end_date", default="2100-02-01")
+
+        constellations = Parameter(name="constellations", default=["sentinel-2"])
+        ckpt_path = Parameter(
+            name="cktp_path", default="gs://oxeo-models/semseg/epoch_012.ckpt"
+        )
+        target_size = Parameter(name="target_size", default=1000)
+        bands = Parameter(
+            name="bands", default=["nir", "red", "green", "blue", "swir1", "swir2"]
+        )
+        timeseries_label = Parameter(name="timeseries_label", default=1)
+
+        cnn_batch_size = Parameter(name="cnn_batch_size", default=32)
+        revisit_chunk_size = Parameter(name="revisit_chunk_size", default=8)
+
+        # rename the Flow run to reflect the parameters
+        constellations = parse_constellations_task(constellations)
+        water_list = parse_water_list_task(water_list, postgis_password)
+
+        # get geom
+        db_data = fetch_water_list_task(
+            water_list=water_list, password=postgis_password
+        )
+        gdf = data2gdf_task(db_data)
+
+        # start processing
+        all_paths = get_all_paths_task(gdf, constellations, root_dir)
+
+        # create_masks() is mapped in parallel across all the paths
+        written_dates = create_masks.map(
+            path=all_paths,
+            model_name=unmapped(model_name),
+            project=unmapped(project),
+            credentials=unmapped(credentials),
+            ckpt_path=unmapped(ckpt_path),
+            target_size=unmapped(target_size),
+            bands=unmapped(bands),
+            cnn_batch_size=unmapped(cnn_batch_size),
+            revisit_chunk_size=unmapped(revisit_chunk_size),
+            overwrite=unmapped(overwrite),
+            start_date=unmapped(start_date),
+            end_date=unmapped(end_date),
+        )
+
+        # now instead of mapping across all paths, we map across
+        # individual lakes
+        waterbodies = get_waterbodies_task(gdf, constellations, root_dir)
+        written_dates_mapping = get_written_dates_per_waterbody(
+            all_paths=all_paths,
+            written_dates=written_dates,
+            waterbodies=waterbodies,
+        )
+        ts_dfs = merge_to_timeseries.map(
+            waterbody=waterbodies,
+            mask=unmapped(model_name),
+            label=unmapped(timeseries_label),
+            upstream_tasks=[unmapped(written_dates)],
+        )
+        job_id = get_job_id_task()
+        log_to_bq.map(
+            df=ts_dfs,
+            waterbody=waterbodies,
+            job_id=unmapped(job_id),
+            overwrite=unmapped(overwrite),
+            start_date=unmapped(start_date),
+            end_date=unmapped(end_date),
+            written_dates_mapping=unmapped(written_dates_mapping),
+            model_name=unmapped(model_name),
+            ckpt_path=unmapped(ckpt_path),
+            constellations=unmapped(constellations),
+        )
+    return flow
+
+
+flow = create_flow()
