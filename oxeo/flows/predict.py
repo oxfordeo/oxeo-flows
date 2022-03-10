@@ -106,7 +106,8 @@ def get_written_dates_per_waterbody(
 @task(log_stdout=True, state_handlers=[slack_notifier])
 def merge_to_timeseries(
     waterbody: WaterBody,
-    mask: str,
+    written_dates_mapping: dict[int, tuple[str, str]],
+    model_name: str,
     label: int,
 ) -> pd.DataFrame:
     logger = prefect.context.get("logger")
@@ -114,11 +115,13 @@ def merge_to_timeseries(
         f"Merge all masks in {[(tp.tile.id, tp.constellation) for tp in waterbody.paths]}"
     )
     timeseries_masks = merge_masks_all_constellations(
-        waterbody=waterbody,
-        mask=mask,
+        waterbody=waterbody, mask=model_name
     )
 
-    df = seg_area_all(timeseries_masks, waterbody, label)
+    written_start, _ = written_dates_mapping[waterbody.area_id]
+    logger.warning(f"Get seg area, starting at data {written_start=}")
+
+    df = seg_area_all(timeseries_masks, waterbody, written_start, label)
     df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
@@ -140,9 +143,6 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
     tiles = list({p.tile.id for p in waterbody.paths})
-
-    # TODO
-    # Only log df data that is within written_dates!
 
     written_start, written_end = written_dates_mapping[waterbody.area_id]
     logger.warning(f"Got {written_start=}, {written_end=} from mapping")
@@ -350,9 +350,9 @@ def create_flow():
         )
         ts_dfs = merge_to_timeseries.map(
             waterbody=waterbodies,
-            mask=unmapped(model_name),
+            written_dates_mapping=unmapped(written_dates_mapping),
+            model_name=unmapped(model_name),
             label=unmapped(timeseries_label),
-            upstream_tasks=[unmapped(written_dates)],
         )
         job_id = get_job_id_task()
         log_to_bq.map(
