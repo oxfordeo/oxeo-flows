@@ -6,7 +6,6 @@ import prefect
 from dask_kubernetes import KubeCluster, make_pod_spec
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
-from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
@@ -259,11 +258,6 @@ def create_flow():
     clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
     schedule = Schedule(clocks=[clock])
 
-    executor = DaskExecutor(
-        cluster_class=dynamic_cluster,
-        adapt_kwargs={"maximum": 80},
-        cluster_kwargs={},
-    )
     storage = GitHub(
         repo=cfg.repo_name,
         path="oxeo/flows/predict.py",
@@ -276,7 +270,6 @@ def create_flow():
 
     with Flow(
         "predict",
-        executor=executor,
         storage=storage,
         run_config=run_config,
         schedule=schedule,
