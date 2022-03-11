@@ -3,7 +3,6 @@ from datetime import datetime
 import gcsfs
 import pandas as pd
 import prefect
-from dask_kubernetes import KubeCluster, make_pod_spec
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.run_configs import KubernetesRun
@@ -60,7 +59,6 @@ def create_masks(
         target_size=target_size,
     )
 
-    gpu = prefect.context.parameters["gpu_per_worker"]
     written_start, written_end = predict_tile(
         path,
         model_name,
@@ -70,7 +68,7 @@ def create_masks(
         end_date,
         fs,
         overwrite=overwrite,
-        gpu=gpu,
+        gpu=1,  # not used for anything important
     )
 
     logger.info(f"Successfully created masks for {path.path} on: {task_full_name}")
@@ -205,57 +203,12 @@ def log_to_bq(
 env = {"PREFECT__LOGGING__EXTRA_LOGGERS": '["oxeo.water"]'}
 
 
-def dynamic_cluster(**kwargs):
-    n_workers = prefect.context.parameters["n_workers"]
-    memory = prefect.context.parameters["memory_per_worker"]
-    cpu = prefect.context.parameters["cpu_per_worker"]
-    gpu = prefect.context.parameters["gpu_per_worker"]
-
-    logger = prefect.context.get("logger")
-    logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
-    if gpu > 0:
-        logger.warning("Creating GPU cluster!")
-
-    container_config = {
-        "resources": {
-            "limits": {
-                "cpu": cpu,
-                "memory": memory,
-                "nvidia.com/gpu": gpu,
-            },
-            "requests": {
-                "cpu": cpu,
-                "memory": memory,
-                "nvidia.com/gpu": gpu,
-            },
-        }
-    }
-
-    image = cfg.docker_oxeo_flows_gpu
-
-    pod_spec = make_pod_spec(
-        image=image,
-        extra_container_config=container_config,
-        env=env,
-        memory_limit=memory,
-    )
-    pod_spec.spec.containers[0].args.append("--no-dashboard")
-    return KubeCluster(
-        n_workers=n_workers,
-        pod_template=pod_spec,
-        scheduler_pod_template=make_pod_spec(image=image, env=env),
-        **kwargs,
-    )
-
-
 def create_flow():
     clock_params = dict(
         water_list="chosen",
         constellations=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
         start_date="1980-01-01",
         end_date="2100-01-01",
-        gpu_per_worker=1,
-        n_workers=2,
     )
     clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
     schedule = Schedule(clocks=[clock])
@@ -265,9 +218,31 @@ def create_flow():
         path="oxeo/flows/predict.py",
         access_token_secret=cfg.prefect_secret_github_token,
     )
+    cpu = 14
+    memory = "56G"
+    gpu = 1
+    job_template = f"""
+    apiVersion: batch/v1
+    kind: Job
+    spec:
+      template:
+        spec:
+          containers:
+            - name: flow
+              resources:
+                requests:
+                  cpu: {cpu}
+                  memory: {memory}
+                  nvidia.com/gpu: {gpu}
+                limits:
+                  cpu: {cpu}
+                  memory: {memory}
+                  nvidia.com/gpu: {gpu}
+    """
     run_config = KubernetesRun(
         image=cfg.docker_oxeo_flows_gpu,
         env=env,
+        job_template=job_template,
     )
 
     with Flow(
@@ -280,11 +255,6 @@ def create_flow():
         postgis_password = PrefectSecret("POSTGIS_PASSWORD")
 
         # parameters
-        flow.add_task(Parameter("n_workers", default=1))
-        flow.add_task(Parameter("memory_per_worker", default="56G"))
-        flow.add_task(Parameter("cpu_per_worker", default=14))
-        flow.add_task(Parameter("gpu_per_worker", default=0))
-
         water_list = Parameter(name="water_list", default=[25906112, 25906127])
         model_name = Parameter(name="model_name", default="cnn")
 
