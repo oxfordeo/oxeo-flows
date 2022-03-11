@@ -96,8 +96,10 @@ def get_written_dates_per_waterbody(
             for tile_id, dates in zip(all_tile_ids, written_dates)
             if tile_id in wb_tile_ids
         ]
-        start = min(w[0] for w in wb_dates)
-        end = max(w[1] for w in wb_dates)
+        # Get the latest existing start, and the _earliest_ existing end
+        # i.e. risk repeating work rather than risk skipping new tile data
+        start = max(w[0] for w in wb_dates)
+        end = min(w[1] for w in wb_dates)
         waterbody_dates_mapping[wb.area_id] = (start, end)
     return waterbody_dates_mapping
 
@@ -292,8 +294,8 @@ def create_flow():
 
         overwrite = Parameter(name="overwrite", default=False)
         overwrite_scalar = Parameter(name="overwrite_scalar", default=False)
-        start_date = Parameter(name="start_date", default="1984-01-01")
-        end_date = Parameter(name="end_date", default="2100-02-01")
+        start_date = Parameter(name="start_date", default="1980-01-01")
+        end_date = Parameter(name="end_date", default="2100-01-01")
 
         constellations = Parameter(name="constellations", default=["sentinel-2"])
         ckpt_path = Parameter(
