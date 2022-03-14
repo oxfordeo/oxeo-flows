@@ -118,6 +118,8 @@ def merge_to_timeseries(
         waterbody=waterbody, mask=model_name
     )
 
+    # TODO This should rather check BQ logs/timeseries data
+    # As a merge/log could have failed, and then the data will never get submitted.
     if overwrite:
         start_date = "1980-01-01"
     else:
@@ -125,7 +127,8 @@ def merge_to_timeseries(
     logger.warning(f"Get seg area, starting at data {start_date=}")
 
     df = seg_area_all(timeseries_masks, waterbody, start_date, label)
-    df.date = df.date.apply(lambda x: x.date())  # remove time component
+    if len(df) > 0:
+        df.date = df.date.apply(lambda x: x.date())  # remove time component
 
     return df
 
@@ -145,6 +148,11 @@ def log_to_bq(
     pfaf2: int = 12,
 ) -> None:
     logger = prefect.context.get("logger")
+
+    if len(df) == 0:
+        logger.warning("Dataframe is empty, not sending anything to BQ")
+        return
+
     tiles = list({p.tile.id for p in waterbody.paths})
 
     written_start, written_end = written_dates_mapping[waterbody.area_id]
