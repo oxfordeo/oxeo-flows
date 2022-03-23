@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@master
+        uses: google-github-actions/setup-gcloud@v0
         with:
           project_id: oxeo-main
           service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@master
+        uses: google-github-actions/setup-gcloud@v0
         with:
           project_id: oxeo-main
           service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
