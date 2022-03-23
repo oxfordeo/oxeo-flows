@@ -16,7 +16,7 @@ USER root
 
 # Install deps
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
+    apt-get install -y \
       python3-pip openssh-client git apt-transport-https \
       software-properties-common ca-certificates gnupg curl
 
