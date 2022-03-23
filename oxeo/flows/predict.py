@@ -248,7 +248,7 @@ def create_flow():
                   nvidia.com/gpu: {gpu}
     """
     run_config = KubernetesRun(
-        image=cfg.docker_oxeo_flows_gpu,
+        image=cfg.docker_oxeo_flows,
         env=env,
         job_template=job_template,
     )

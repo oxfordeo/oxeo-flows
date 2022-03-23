@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM eu.gcr.io/oxeo-main/base-gpu:latest
+FROM eu.gcr.io/oxeo-main/base:latest
 
 COPY . oxeo-flows
 
