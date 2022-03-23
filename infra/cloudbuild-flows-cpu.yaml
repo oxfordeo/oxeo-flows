@@ -1,0 +1,9 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '.'
+      - '--file=infra/Dockerfile.flows-cpu'
+      - '--tag=eu.gcr.io/$PROJECT_ID/flows-cpu'
+images:
+  - 'eu.gcr.io/$PROJECT_ID/flows-cpu'

@@ -10,11 +10,11 @@ steps:
       - 'echo $$SSH > key &&
          echo $$GCP_TOKEN > token &&
           docker build .
-          --file=infra/Dockerfile.python-gcloud-auth
-          --tag=eu.gcr.io/$PROJECT_ID/python-gcloud-auth
+          --file=infra/Dockerfile.base-gpu
+          --tag=eu.gcr.io/$PROJECT_ID/base-gpu
           --build-arg=PREFECT=$$PREFECT'
 images:
-  - 'eu.gcr.io/$PROJECT_ID/python-gcloud-auth'
+  - 'eu.gcr.io/$PROJECT_ID/base-gpu'
 availableSecrets:
   secretManager:
   - versionName: 'projects/$PROJECT_ID/secrets/github-machine-ssh-key/versions/1'

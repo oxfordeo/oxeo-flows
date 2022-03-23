@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM eu.gcr.io/oxeo-main/pytorch-gcloud-auth:latest
+FROM eu.gcr.io/oxeo-main/base-cpu:latest
 
 COPY . oxeo-flows
 

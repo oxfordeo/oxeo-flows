@@ -5,15 +5,15 @@ on:
     branches: [ main ]
     paths:
       - 'setup.cfg'
-      - 'infra/Dockerfile.oxeo-flows'
-      - 'infra/cloudbuild-oxeo-flows.yaml'
+      - 'infra/*'
       - 'oxeo/flows/utils.py'
+      - 'oxeo/flows/config.py'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  cloudbuild-GPU:
+  cloudbuild-cpu:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -28,9 +28,9 @@ jobs:
 
       - name: Submit to Cloud Build
         run: |
-          gcloud builds submit . --config=infra/cloudbuild-oxeo-flows.yaml
+          gcloud builds submit . --config=infra/cloudbuild-flows-cpu.yaml
 
-  cloudbuild-CPU:
+  cloudbuild-gpu:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -45,4 +45,4 @@ jobs:
 
       - name: Submit to Cloud Build
         run: |
-          gcloud builds submit . --config=infra/cloudbuild-oxeo-flows-gpu.yaml
+          gcloud builds submit . --config=infra/cloudbuild-flows-gpu.yaml
