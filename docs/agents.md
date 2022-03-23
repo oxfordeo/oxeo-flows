@@ -11,7 +11,7 @@ ssh-keygen -t ed25519 -f keys/deploy_key
 ### Create image in GCR registry
 ```
 gcloud builds submit . \
-  --tag=eu.gcr.io/oxeo-main/oxeo-flows \
+  --tag=eu.gcr.io/oxeo-main/flows \
   --ignore-file=.dockerignore
 ```
 
@@ -22,7 +22,7 @@ gcloud builds submit --config=cloudbuild.yaml .
 
 Or locally:
 ```
-docker build . -t oxeo-flows
+docker build . -t flows
 ```
 
 Automatically build the image from GitHub using Cloud Build triggers.
@@ -71,5 +71,5 @@ gcloud ai custom-jobs create \
  --region=europe-west4 \
  --display-name=prefect-agent \
  --service-account=prefect@oxeo-main.iam.gserviceaccount.com \
- --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/oxeo-flows:latest
+ --worker-pool-spec=machine-type=n1-highmem-2,replica-count=1,container-image-uri=eu.gcr.io/oxeo-main/flows:latest
 ```
