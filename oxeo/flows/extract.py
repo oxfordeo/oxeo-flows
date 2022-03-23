@@ -1,4 +1,3 @@
-import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -33,51 +32,6 @@ from oxeo.flows.utils import (
     parse_constellations_task,
     parse_water_list_task,
 )
-
-
-@task(log_stdout=True)
-def build(
-    project: str,
-    gcp_region: str,
-    credentials: Path,
-    user_id: str,
-) -> bool:
-    # TODO Delete this function, this shouldn't be Prefect's problem
-    logger = prefect.context.get("logger")
-
-    logger.info("Checking that Google Cloud Run and PubSub resources exist")
-    name = f"{user_id}-stacextractor"
-    cmd = [
-        "gcloud",
-        "run",
-        "services",
-        "describe",
-        name,
-        f"--project={project}",
-        f"--region={gcp_region}",
-        "--platform=managed",
-    ]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if not p.stderr == "":
-        logger.error(p.stderr)
-        logger.error(f"Couldn't find Cloud Run: {name}")
-        raise Exception
-
-    cmd = [
-        "gcloud",
-        "pubsub",
-        "subscriptions",
-        "describe",
-        name,
-        f"--project={project}",
-    ]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if not p.stderr == "":
-        logger.error(p.stderr)
-        logger.error(f"Couldn't find PubSub subscription: {name}")
-        raise Exception
-
-    return True
 
 
 @task(log_stdout=True)
@@ -362,7 +316,6 @@ def create_flow():
 
         credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
         project = Parameter(name="project", default="oxeo-main")
-        gcp_region = Parameter(name="gcp_region", default="europe-west4")
         user_id = Parameter(name="user_id", default="oxeo")
         root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
 
@@ -392,7 +345,6 @@ def create_flow():
 
         # run the flow
         storage_path = root_dir
-        built = build(project, gcp_region, credentials, user_id)
         item_collection = stac.map(
             waterbody=waterbodies,
             credentials=unmapped(credentials),
@@ -435,7 +387,7 @@ def create_flow():
             credentials=unmapped(credentials),
             storage_path=unmapped(storage_path),
             chunk_size=unmapped(chunk_size),
-            upstream_tasks=[built, prepped],
+            upstream_tasks=[prepped],
         )
         copy_metadata.map(
             extraction_tasks,
