@@ -7,3 +7,4 @@ steps:
       - '--tag=eu.gcr.io/$PROJECT_ID/flows'
 images:
   - 'eu.gcr.io/$PROJECT_ID/flows'
+timeout: 1200s
