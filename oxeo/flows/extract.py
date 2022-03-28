@@ -267,7 +267,7 @@ def log_to_bq(
         bbox_size=bbox_size,
         split_m=split_m,
         chunk_size=chunk_size,
-        tiles=tiles,
+        tiles=[t.id for t in tiles],
         bbox_n=maxy,
         bbox_s=miny,
         bbox_w=minx,
