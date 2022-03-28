@@ -290,14 +290,14 @@ def get_lake_groups(
     gdf: gpd.GeoDataFrame,
 ) -> list[GridGroup]:
     logger = prefect.context.get("logger")
+
     gdf["grid"] = ""
     for idx, row in gdf.iterrows():
         t = get_tiles(row.geometry)[0]
         gdf.at[idx, "grid"] = f"{t.zone}{t.row}"
 
-    groups = {}
-    for grid in gdf.grid.unique():
-        groups[grid] = gdf.loc[gdf.grid == grid].unary_union
+    groups = {grid: gdf.loc[gdf.grid == grid].unary_union for grid in gdf.grid.unique()}
+    groups = {k: v for k, v in sorted(groups.items(), key=lambda item: item[1].area)}
 
     logger.info(f"Got the following grid groups: {groups.keys()=}")
 
