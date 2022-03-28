@@ -42,14 +42,6 @@ class GridGroup:
     geom: Union[Polygon, MultiPolygon]
 
 
-@define
-class GroupResult:
-    run_id: str
-    num_extractions: int
-    written_start: str
-    written_end: str
-
-
 @task(log_stdout=True)
 def stac(
     group: GridGroup,
@@ -191,13 +183,13 @@ def copy_metadata(
 
 @task(log_stdout=True, state_handlers=[slack_notifier])
 def check_deploy_completion(
-    results: list[GroupResult],
+    run_id: str,
+    extraction_tasks: list[ExtractionTask],
     project: str,
     user_id: str,
 ) -> bool:
     logger = prefect.context.get("logger")
-    tot = sum(r.num_extractions for r in results)
-    run_ids = ",".join(f"'{r.run_id}'" for r in results)
+    tot = len(extraction_tasks)
 
     prev_done = -1
     loops_unchanged = 0
@@ -209,7 +201,7 @@ def check_deploy_completion(
         query = f"""
         SELECT COUNT(msg_type)
         FROM {project}.satextractor.{user_id}
-        WHERE job_id IN ({run_ids})
+        WHERE job_id = run_id
         AND msg_type = 'FINISHED'
         """
         df = client.query(query).result().to_dataframe()
@@ -237,7 +229,8 @@ def check_deploy_completion(
 @task(log_stdout=True)
 def log_to_bq(
     group: GridGroup,
-    result: GroupResult,
+    tiles: list[Tile],
+    extraction_tasks: list[ExtractionTask],
     job_id: str,
     start_date: str,
     end_date: str,
@@ -249,7 +242,7 @@ def log_to_bq(
 ) -> None:
     logger = prefect.context.get("logger")
 
-    if result.num_extractions == 0:
+    if len(extraction_tasks) == 0:
         logger.warning("No extraction tasks, not logging anything to BQ")
         return
 
@@ -257,12 +250,11 @@ def log_to_bq(
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
     minx, miny, maxx, maxy = group.geom.bounds
 
-    written_start = result.written_start
-    written_end = result.written_end
+    written_start = min(e.sensing_time for e in extraction_tasks).date().isoformat()
+    written_end = max(e.sensing_time for e in extraction_tasks).date().isoformat()
 
     logger.info(f"Log {group.grid=} extraction to BQ")
 
-    tiles = list({t.id for t in get_tiles(group.geom)})
     dict_water = dict(
         run_id=run_id,
         area_id=0,
@@ -327,7 +319,7 @@ def main_loop(
     project: str,
     job_id: str,
     user_id: str,
-) -> GroupResult:
+) -> None:
     item_collection = stac.run(
         group,
         credentials,
@@ -335,10 +327,12 @@ def main_loop(
         end_date,
         constellations,
     )
+
     tiles = tiler.run(
         group,
         bbox_size,
     )
+
     extraction_tasks = scheduler.run(
         group,
         tiles,
@@ -350,6 +344,7 @@ def main_loop(
         project,
         credentials,
     )
+
     preparer.run(
         group,
         tiles,
@@ -361,6 +356,7 @@ def main_loop(
         chunk_size,
         overwrite,
     )
+
     run_id = deployer.run(
         group,
         extraction_tasks,
@@ -371,20 +367,33 @@ def main_loop(
         storage_path,
         chunk_size,
     )
+
     copy_metadata.run(
         extraction_tasks,
         credentials,
         storage_path,
     )
 
-    result = GroupResult(
+    check_deploy_completion.run(
         run_id=run_id,
-        num_extractions=len(extraction_tasks),
-        written_start=min(e.sensing_time for e in extraction_tasks).date().isoformat(),
-        written_end=max(e.sensing_time for e in extraction_tasks).date().isoformat(),
+        extraction_tasks=extraction_tasks,
+        project=project,
+        user_id=user_id,
     )
 
-    return result
+    log_to_bq.run(
+        group=group,
+        tiles=tiles,
+        extraction_tasks=extraction_tasks,
+        job_id=job_id,
+        start_date=start_date,
+        end_date=end_date,
+        constellations=constellations,
+        bbox_size=bbox_size,
+        split_m=split_m,
+        chunk_size=chunk_size,
+        overwrite=overwrite,
+    )
 
 
 def create_flow():
@@ -450,7 +459,7 @@ def create_flow():
         grid_groups = get_lake_groups(gdf)
 
         # run the flow
-        results: list[GroupResult] = main_loop.map(
+        main_loop.map(
             group=grid_groups,
             credentials=unmapped(credentials),
             start_date=unmapped(start_date),
@@ -466,25 +475,6 @@ def create_flow():
             user_id=unmapped(user_id),
         )
 
-        complete: bool = check_deploy_completion(
-            results=results,
-            project=project,
-            user_id=user_id,
-        )
-
-        log_to_bq.map(
-            group=grid_groups,
-            result=results,
-            job_id=unmapped(job_id),
-            start_date=unmapped(start_date),
-            end_date=unmapped(end_date),
-            constellations=unmapped(constellations),
-            bbox_size=unmapped(bbox_size),
-            split_m=unmapped(split_m),
-            chunk_size=unmapped(chunk_size),
-            overwrite=unmapped(overwrite),
-            upstream_tasks=[unmapped(complete)],
-        )
     return flow
 
 
