@@ -10,7 +10,6 @@ import pystac
 from attrs import define
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
-from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
@@ -397,7 +396,6 @@ def create_flow():
     clock = CronClock("45 8 * * 1", parameter_defaults=clock_params)
     schedule = Schedule(clocks=[clock])
 
-    executor = DaskExecutor()
     storage = GitHub(
         repo=cfg.repo_name,
         path="oxeo/flows/extract.py",
@@ -405,12 +403,11 @@ def create_flow():
     )
     run_config = KubernetesRun(
         image=cfg.docker_oxeo_flows,
-        cpu_request=8,
-        memory_request="32Gi",
+        cpu_request=15,
+        memory_request="56Gi",
     )
     with Flow(
         "extract",
-        executor=executor,
         storage=storage,
         run_config=run_config,
         schedule=schedule,
