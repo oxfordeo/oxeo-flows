@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Union
 
 import gcsfs
+import geopandas as gpd
 import prefect
 import pystac
+from attrs import define
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.executors import DaskExecutor
@@ -25,33 +27,38 @@ from satextractor.tiler import split_region_in_utm_tiles
 from shapely.geometry import MultiPolygon, Polygon
 
 import oxeo.flows.config as cfg
-from oxeo.core.models.waterbody import WaterBody
+from oxeo.core.models.tile import get_tiles
 from oxeo.flows.utils import (
     data2gdf_task,
     fetch_water_list_task,
-    gdf2geom_task,
     get_job_id_task,
-    get_waterbodies_task,
     parse_constellations_task,
     parse_water_list_task,
 )
 
 
+@define
+class GridGroup:
+    grid: str
+    geom: Union[Polygon, MultiPolygon]
+
+
 @task(log_stdout=True)
 def stac(
+    group: GridGroup,
     credentials: Path,
     start_date: str,
     end_date: str,
     constellations: str,
-    region: Union[Polygon, MultiPolygon],
 ) -> pystac.ItemCollection:
     logger = prefect.context.get("logger")
-    logger.info("Converting data to STAC")
+    logger.info(f"Converting data to STAC for {group.grid=}")
     if start_date > end_date:
         raise ValueError("Start date must be before end date!")
+
     item_collection = gcp_region_to_item_collection(
         credentials=credentials,
-        region=region,
+        region=group.geom,
         start_date=start_date,
         end_date=end_date,
         constellations=constellations,
@@ -61,13 +68,13 @@ def stac(
 
 @task(log_stdout=True)
 def tiler(
+    group: GridGroup,
     bbox_size: int,
-    region: Union[Polygon, MultiPolygon],
 ) -> list[Tile]:
     logger = prefect.context.get("logger")
-    logger.info("Creating tiles")
+    logger.info(f"Creating tiles for {group.grid=}")
     tiles = split_region_in_utm_tiles(
-        region=region,
+        region=group.geom,
         bbox_size=bbox_size,
     )
     logger.warning(f"Got the following tiles: {[t.id for t in tiles]}")
@@ -76,9 +83,10 @@ def tiler(
 
 @task(log_stdout=True)
 def scheduler(
-    constellations: list[str],
+    group: GridGroup,
     tiles: list[Tile],
     item_collection: pystac.ItemCollection,
+    constellations: list[str],
     split_m: int,
     overwrite: bool,
     storage_path: str,
@@ -86,7 +94,8 @@ def scheduler(
     credentials: str,
 ) -> list[ExtractionTask]:
     logger = prefect.context.get("logger")
-    logger.info("Create extraction tasks")
+    logger.info(f"Create extraction tasks for {group.grid=}")
+
     fs = gcsfs.GCSFileSystem(project=project, token=credentials)
     extraction_tasks = create_tasks_by_splits(
         tiles=tiles,
@@ -106,17 +115,19 @@ def scheduler(
 
 @task(log_stdout=True)
 def preparer(
+    group: GridGroup,
+    tiles: list[Tile],
+    extraction_tasks: list[ExtractionTask],
     credentials: Path,
     constellations: list[str],
     storage_path: str,
     bbox_size: int,
     chunk_size: int,
-    tiles: list[Tile],
-    extraction_tasks: list[ExtractionTask],
     overwrite: bool,
 ) -> None:
     logger = prefect.context.get("logger")
-    logger.info("Prepare Cloud Storage bucket")
+    logger.info(f"Prepare Cloud Storage bucket for {group.grid=}")
+
     gcp_prepare_archive(
         credentials=credentials,
         tasks=extraction_tasks,
@@ -133,20 +144,23 @@ def preparer(
 
 @task(log_stdout=True)
 def deployer(
+    group: GridGroup,
+    extraction_tasks: list[ExtractionTask],
     job_id: str,
     project: str,
     user_id: str,
     credentials: Path,
     storage_path: str,
     chunk_size: int,
-    extraction_tasks: list[ExtractionTask],
-) -> None:
+) -> str:
     logger = prefect.context.get("logger")
-    logger.info("Deploy tasks to Cloud RUn")
+
+    run_id = f"{job_id}_{group.grid}"
+    logger.info(f"Deploy tasks to Cloud Run for {group.grid=} with {run_id=}")
 
     topic = f"projects/{project}/topics/{'-'.join([user_id, 'stacextractor'])}"
     deploy_tasks(
-        job_id=job_id,
+        job_id=run_id,
         credentials=credentials,
         extraction_tasks=extraction_tasks,
         storage_path=storage_path,
@@ -154,11 +168,13 @@ def deployer(
         topic=topic,
     )
 
+    return run_id
+
 
 @task(log_stdout=True)
 def copy_metadata(
-    credentials: str,
     extraction_tasks: list[ExtractionTask],
+    credentials: str,
     storage_path: str,
 ) -> None:
     logger = prefect.context.get("logger")
@@ -168,13 +184,14 @@ def copy_metadata(
 
 @task(log_stdout=True, state_handlers=[slack_notifier])
 def check_deploy_completion(
+    run_ids: list[str],
+    extraction_tasks: list[ExtractionTask],
     project: str,
     user_id: str,
-    job_id: str,
-    extraction_tasks: list[ExtractionTask],
 ) -> bool:
     logger = prefect.context.get("logger")
-    tot = len(extraction_tasks)
+    tot = sum(len(ext) for ext in extraction_tasks)
+    run_ids = ",".join(f"'{r}'" for r in run_ids)
 
     prev_done = -1
     loops_unchanged = 0
@@ -183,8 +200,12 @@ def check_deploy_completion(
 
     while True:
         client = bigquery.Client()
-        table = f"{project}.satextractor.{user_id}"
-        query = f"SELECT COUNT(msg_type) FROM `{table}` WHERE job_id = '{job_id}' AND msg_type = 'FINISHED'"
+        query = f"""
+        SELECT COUNT(msg_type)
+        FROM {project}.satextractor.{user_id}
+        WHERE job_id IN ({run_ids})
+        AND msg_type = 'FINISHED'
+        """
         df = client.query(query).result().to_dataframe()
         done = int(df.iat[0, 0])
         logger.info(f"Cloud Run extraction tasks: {done} of {tot}")
@@ -209,7 +230,7 @@ def check_deploy_completion(
 
 @task(log_stdout=True)
 def log_to_bq(
-    waterbody: WaterBody,
+    group: GridGroup,
     extraction_tasks: list[ExtractionTask],
     job_id: str,
     start_date: str,
@@ -226,20 +247,19 @@ def log_to_bq(
         logger.warning("No extraction tasks, not logging anything to BQ")
         return
 
-    area_id = waterbody.area_id
-    run_id = f"{job_id}_{area_id}"
+    run_id = f"{job_id}_{group.grid}"
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
-    minx, miny, maxx, maxy = waterbody.geometry.bounds
+    minx, miny, maxx, maxy = group.geom.bounds
 
     written_start = min(e.sensing_time for e in extraction_tasks).date().isoformat()
     written_end = max(e.sensing_time for e in extraction_tasks).date().isoformat()
 
-    logger.info(f"Log lake {area_id} extraction to BQ")
+    logger.info(f"Log {group.grid=} extraction to BQ")
 
-    tiles = list({p.tile.id for p in waterbody.paths})
+    tiles = list({t.id for t in get_tiles(group.geom)})
     dict_water = dict(
         run_id=run_id,
-        area_id=area_id,
+        area_id="",
         timestamp=timestamp,
         start_date=start_date,
         end_date=end_date,
@@ -265,6 +285,22 @@ def log_to_bq(
         raise ValueError(
             f"there where {len(errors)} error when inserting. " + str(errors),
         )
+
+
+@task
+def get_lake_groups(
+    gdf: gpd.GeoDataFrame,
+) -> list[GridGroup]:
+    gdf["grid"] = ""
+    for idx, row in gdf.iterrows():
+        t = get_tiles(row.geometry)[0]
+        gdf.at[idx, "grid"] = f"{t.zone}{t.row}"
+
+    groups = {}
+    for grid in gdf.grid.unique():
+        groups[grid] = gdf.loc[gdf.grid == grid].unary_union
+
+    return [GridGroup(k, v) for k, v in groups.items()]
 
 
 def create_flow():
@@ -305,7 +341,7 @@ def create_flow():
         credentials = Parameter(name="credentials", default=cfg.default_gcp_token)
         project = Parameter(name="project", default="oxeo-main")
         user_id = Parameter(name="user_id", default="oxeo")
-        root_dir = Parameter(name="root_dir", default="gs://oxeo-water/prod")
+        storage_path = Parameter(name="storage_path", default="gs://oxeo-water/prod")
 
         start_date = Parameter(name="start_date", default="2020-01-01")
         end_date = Parameter(name="end_date", default="2020-02-01")
@@ -319,70 +355,79 @@ def create_flow():
         split_m = Parameter(name="split_m", default=100000)
         chunk_size = Parameter(name="chunk_size", default=1000)
 
-        # rename the Flow run to reflect the parameters
+        # parse inputs
         constellations = parse_constellations_task(constellations)
         water_list = parse_water_list_task(water_list, postgis_password)
         job_id = get_job_id_task()
-        # run_id = generate_run_id(water_list)
-        # rename_flow_run(run_id)
 
         # get geom
         db_data = fetch_water_list_task(
             water_list=water_list, password=postgis_password
         )
         gdf = data2gdf_task(db_data)
-        aoi_geom = gdf2geom_task(gdf)
+        grid_groups = get_lake_groups(gdf)
 
         # run the flow
-        storage_path = root_dir
-        item_collection = stac(
-            credentials, start_date, end_date, constellations, aoi_geom
+        item_collection: list[pystac.ItemCollection] = stac.map(
+            group=grid_groups,
+            credentials=unmapped(credentials),
+            start_date=unmapped(start_date),
+            end_date=unmapped(end_date),
+            constellations=unmapped(constellations),
         )
-        tiles = tiler(bbox_size, aoi_geom)
-        extraction_tasks = scheduler(
-            constellations,
-            tiles,
-            item_collection,
-            split_m,
-            overwrite,
-            storage_path,
-            project,
-            credentials,
+        tiles: list[list[Tile]] = tiler.map(
+            group=grid_groups,
+            bbox_size=unmapped(bbox_size),
         )
-        prepped = preparer(
-            credentials,
-            constellations,
-            storage_path,
-            bbox_size,
-            chunk_size,
-            tiles,
-            extraction_tasks,
-            overwrite,
+        extraction_tasks: list[list[ExtractionTask]] = scheduler.map(
+            group=grid_groups,
+            tiles=tiles,
+            item_collection=item_collection,
+            constellations=unmapped(constellations),
+            split_m=unmapped(split_m),
+            overwrite=unmapped(overwrite),
+            storage_path=unmapped(storage_path),
+            project=unmapped(project),
+            credentials=unmapped(credentials),
         )
-        deployed = deployer(
-            job_id,
-            project,
-            user_id,
-            credentials,
-            storage_path,
-            chunk_size,
-            extraction_tasks,
+        prepped: list[None] = preparer.map(
+            group=grid_groups,
+            tiles=tiles,
+            extraction_tasks=extraction_tasks,
+            credentials=unmapped(credentials),
+            constellations=unmapped(constellations),
+            storage_path=unmapped(storage_path),
+            bbox_size=unmapped(bbox_size),
+            chunk_size=unmapped(chunk_size),
+            overwrite=unmapped(overwrite),
+        )
+        run_ids: list[str] = deployer.map(
+            group=grid_groups,
+            extraction_tasks=extraction_tasks,
+            job_id=unmapped(job_id),
+            project=unmapped(project),
+            user_id=unmapped(user_id),
+            credentials=unmapped(credentials),
+            storage_path=unmapped(storage_path),
+            chunk_size=unmapped(chunk_size),
             upstream_tasks=[prepped],
         )
-        copy_metadata(credentials, extraction_tasks, storage_path)
-
-        complete = check_deploy_completion(
-            project,
-            user_id,
-            job_id,
+        copy_metadata.map(
             extraction_tasks,
-            upstream_tasks=[deployed],
+            credentials=unmapped(credentials),
+            storage_path=unmapped(storage_path),
         )
 
-        waterbodies = get_waterbodies_task(gdf, constellations)
+        complete: bool = check_deploy_completion(
+            run_ids=run_ids,
+            extraction_tasks=extraction_tasks,
+            project=project,
+            user_id=user_id,
+        )
+
         log_to_bq.map(
-            waterbody=waterbodies,
-            extraction_tasks=unmapped(extraction_tasks),
+            group=grid_groups,
+            extraction_tasks=extraction_tasks,
             job_id=unmapped(job_id),
             start_date=unmapped(start_date),
             end_date=unmapped(end_date),
