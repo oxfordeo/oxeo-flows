@@ -198,10 +198,9 @@ def check_deploy_completion(
 
     while True:
         client = bigquery.Client()
-        query = f"""
-        SELECT COUNT(msg_type)
+        query = f""" SELECT COUNT(msg_type)
         FROM {project}.satextractor.{user_id}
-        WHERE job_id = run_id
+        WHERE job_id = '{run_id}'
         AND msg_type = 'FINISHED'
         """
         df = client.query(query).result().to_dataframe()
