@@ -6,8 +6,6 @@ import prefect
 from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.run_configs import KubernetesRun
-from prefect.schedules import Schedule
-from prefect.schedules.clocks import CronClock
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from prefect.utilities.notifications import slack_notifier
@@ -212,15 +210,6 @@ env = {"PREFECT__LOGGING__EXTRA_LOGGERS": '["oxeo.water"]'}
 
 
 def create_flow():
-    clock_params = dict(
-        water_list="chosen",
-        constellations=["landsat-5", "landsat-7", "landsat-8", "sentinel-2"],
-        start_date="1980-01-01",
-        end_date="2100-01-01",
-    )
-    clock = CronClock("45 8 * * 2", parameter_defaults=clock_params)
-    schedule = Schedule(clocks=[clock])
-
     storage = GitHub(
         repo=cfg.repo_name,
         path="oxeo/flows/predict.py",
@@ -257,7 +246,6 @@ def create_flow():
         "predict",
         storage=storage,
         run_config=run_config,
-        schedule=schedule,
     ) as flow:
         # secrets
         postgis_password = PrefectSecret("POSTGIS_PASSWORD")
