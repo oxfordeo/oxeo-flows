@@ -1,15 +1,6 @@
 name: build-images
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'setup.cfg'
-      - 'infra/*'
-      - 'oxeo/flows/utils.py'
-      - 'oxeo/flows/config.py'
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:

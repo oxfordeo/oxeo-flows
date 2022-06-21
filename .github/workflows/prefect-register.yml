@@ -1,12 +1,6 @@
 name: prefect-register
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'oxeo/flows/*'
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
