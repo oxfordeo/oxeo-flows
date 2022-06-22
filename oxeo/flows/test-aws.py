@@ -1,3 +1,4 @@
+import geopandas as gpd
 from prefect import Flow, task
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -14,6 +15,7 @@ def foo():
 @task(log_stdout=True)
 def bar(x):
     print(x + " world")
+    print(gpd.__version__)
 
 
 def create_flow():
@@ -22,9 +24,15 @@ def create_flow():
         path="oxeo/flows/test-aws.py",
         access_token_secret=prefect_secret_github_token,
     )
-    run_config = KubernetesRun()
+    run_config = KubernetesRun(
+        image="413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest",
+    )
 
-    with Flow("test-aws", storage=storage, run_config=run_config) as flow:
+    with Flow(
+        "test-aws",
+        storage=storage,
+        run_config=run_config,
+    ) as flow:
         word = foo()
         bar(word)
 

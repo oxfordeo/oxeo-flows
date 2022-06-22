@@ -6,7 +6,7 @@ prefect_secret_github_token = "GITHUB"
 
 # dask_gcp_zone = "europe-west4-a"
 # dask_projectid = "oxeo-main"
-dask_image = "oxeo-flows"
+# dask_image = "oxeo-flows"
 
 # db_name = "geom"
 # db_user = "reader"

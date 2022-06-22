@@ -5,7 +5,6 @@ import geopandas as gpd
 import prefect
 from prefect import task
 from prefect.tasks.postgres.postgres import PostgresFetch
-from satextractor.models.constellation_info import BAND_INFO
 
 import oxeo.flows.config as cfg
 from oxeo.core.models.data import data2gdf
@@ -17,7 +16,13 @@ from oxeo.core.models.waterbody import WaterBody, get_waterbodies
 def parse_constellations_task(constellations: Union[str, list]) -> list[str]:
     logger = prefect.context.get("logger")
 
-    all_constellations = list(BAND_INFO.keys()) + ["sentinel-1"]
+    all_constellations = [
+        "sentinel-1",
+        "sentinel-2",
+        "landsat-5",
+        "landsat-7",
+        "landsat-8",
+    ]
     if isinstance(constellations, str):
         if constellations == "all":
             constellations = all_constellations

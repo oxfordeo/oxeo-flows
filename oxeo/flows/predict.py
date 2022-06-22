@@ -1,31 +1,31 @@
 from datetime import datetime
 
-import gcsfs
+# import gcsfs
 import pandas as pd
 import prefect
-from google.cloud import bigquery
+# from google.cloud import bigquery
 from prefect import Flow, Parameter, task, unmapped
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from prefect.utilities.notifications import slack_notifier
 
-import oxeo.flows.config as cfg
+# import oxeo.flows.config as cfg
 from oxeo.core.models.tile import TilePath
-from oxeo.core.models.timeseries import merge_masks_all_constellations
+# from oxeo.core.models.timeseries import merge_masks_all_constellations
 from oxeo.core.models.waterbody import WaterBody
-from oxeo.flows.utils import (
-    data2gdf_task,
-    fetch_water_list_task,
-    get_all_paths_task,
-    get_job_id_task,
-    get_waterbodies_task,
-    parse_constellations_task,
-    parse_water_list_task,
-)
-from oxeo.water.metrics import seg_area_all
-from oxeo.water.models.factory import model_factory
-from oxeo.water.models.tile_utils import predict_tile
+# from oxeo.flows.utils import (
+    # data2gdf_task,
+    # fetch_water_list_task,
+    # get_all_paths_task,
+    # get_job_id_task,
+    # get_waterbodies_task,
+    # parse_constellations_task,
+    # parse_water_list_task,
+# )
+# from oxeo.water.metrics import seg_area_all
+# from oxeo.water.models.factory import model_factory
+# from oxeo.water.models.tile_utils import predict_tile
 
 
 @task(log_stdout=True)
@@ -47,7 +47,7 @@ def create_masks(
     task_full_name = prefect.context.get("task_full_name")
     logger.info(f"Creating mask for {path.path} on: {task_full_name}")
 
-    fs = gcsfs.GCSFileSystem(project=project, token=credentials)
+    # fs = gcsfs.GCSFileSystem(project=project, token=credentials)
 
     predictor = model_factory(model_name).predictor(
         ckpt_path=ckpt_path,
@@ -336,4 +336,7 @@ def create_flow():
     return flow
 
 
-flow = create_flow()
+# TODO
+# COMMENTED OUT TO STOP THIS FLOW FROM RE-REGISTERING
+# UN-COMMENT THIS ONCe WE WANT IT ADDED AGAIN
+# flow = create_flow()

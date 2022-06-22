@@ -70,31 +70,40 @@ storage = GitHub(
     access_token_secret=cfg.prefect_secret_github_token,
 )
 
+
 # This specifies where the Flow is run.
 # Kubernetes for us. If you use a remote Dask cluster,
 # Only the Flow *glue* will run on Kubernetes, and all
 # the actual tasks will run on the cluster.
 # If you don't want to use a cluster, you can instead
 # just specify a beefier machine here!
-run_config = KubernetesRun(
-    image=cfg.docker_oxeo_flows,
-)
-with Flow(
-    # don't forget to change this!
-    "template",
-    executor=executor,
-    storage=storage,
-    run_config=run_config,
-) as flow:
-    # Parameters will show up in Prefect Cloud
-    word = Parameter(name="word", default="Hello")
+def create_flow():
+    run_config = KubernetesRun(
+        image=cfg.docker_oxeo_flows,
+    )
+    with Flow(
+        # don't forget to change this!
+        "template",
+        executor=executor,
+        storage=storage,
+        run_config=run_config,
+    ) as flow:
+        # Parameters will show up in Prefect Cloud
+        word = Parameter(name="word", default="Hello")
 
-    # Prefect uses the code to figure out the implicit
-    # dependency graph between tasks
-    # eg rename_flow_run() will just depend on the parameters
-    # and not be linked to the two below
-    list_of_numbers = task_one(word)
+        # Prefect uses the code to figure out the implicit
+        # dependency graph between tasks
+        # eg rename_flow_run() will just depend on the parameters
+        # and not be linked to the two below
+        list_of_numbers = task_one(word)
 
-    # .map() maps the Task across the supplied list
-    # So these will be parallelised across whatever system is being used
-    task_two.map(list_of_numbers)
+        # .map() maps the Task across the supplied list
+        # So these will be parallelised across whatever system is being used
+        task_two.map(list_of_numbers)
+    return flow
+
+
+# TODO
+# UNCOMMENT THIS LINE
+# OTHERWISE NOTHING WILL HAPPEN
+# flow = create_flow()

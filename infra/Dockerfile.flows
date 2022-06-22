@@ -1,7 +1,0 @@
-# syntax=docker/dockerfile:1
-
-FROM eu.gcr.io/oxeo-main/base:latest
-
-COPY . oxeo-flows
-
-RUN pip install oxeo-flows/
