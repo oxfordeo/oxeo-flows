@@ -21,7 +21,7 @@ aws ecr get-login-password --region eu-central-1 | \
 
 Create a cluster (this takes long):
 ```bash
-eksctl create cluster --name oxeo-eks --region eu-central-1 --fargate
+eksctl create cluster --name oxeo-eks --region eu-central-1
 ```
 
 Load the config into kubectl:
@@ -35,22 +35,17 @@ kubectl config current-context
 ```
 
 ## Roles
-1. Having made a role `eksClusterRole` with all the EKS permissions, grant role assume permissions on `oxeo-dev` users, and trust relationships on eksClusterRole.
-2. Add the role to the aws-auth:
+Having made a role `eksClusterRole` with all the EKS permissions, grant role assume permissions on `oxeo-dev` users, and trust relationships on eksClusterRole.
+
+Add the role to the aws-auth:
 ```bash
 eksctl create iamidentitymapping --cluster oxeo-eks \
   --arn arn:aws:iam::413730540186:role/eksClusterRole \
   --username admin \
   --group system:masters
 ```
-3. Update the `kubeconfig` to assume the role:
-```bash
-aws eks --region eu-central-1 update-kubeconfig --name oxeo-eks \
-  --role-arn "arn:aws:iam::413730540186:role/eksClusterRole"
-```
-Any oxeo-dev users can then use the same role to get into any cluster.
 
-Load the config for a cluster using another role:
+Now any oxeo-dev user can load the config for a cluster by assuming the role:
 ```bash
 aws eks --region eu-central-1 update-kubeconfig \
   --name oxeo-eks \
