@@ -1,22 +1,55 @@
 name: build-images
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'oxeo/flows/*'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  cloudbuild-gpu:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.3
         with:
-          project_id: oxeo-main
-          service_account_key: ${{ secrets.GCP_PREFECT_SERV_ACC }}
-          export_default_credentials: true
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Submit to Cloud Build
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: flows
+          #IMAGE_TAG: ${{ github.sha }}
+          DOCKER_BUILDKIT: 1
         run: |
-          gcloud builds submit . --config=infra/cloudbuild-flows.yaml
+          docker build \
+          --build-arg  BUILDKIT_INLINE_CACHE=1 \
+          --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --tag        $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --file       infra/Dockerfile \
+          --ssh        default .
+
+      - name: Push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: flows
+          #IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest

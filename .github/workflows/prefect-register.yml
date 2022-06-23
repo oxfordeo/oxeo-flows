@@ -1,10 +1,16 @@
 name: prefect-register
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'oxeo/flows/*'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build:
+  register:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
