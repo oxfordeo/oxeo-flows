@@ -35,9 +35,17 @@ RUN add-apt-repository ppa:ubuntugis/ubuntugis-unstable && \
         --global-option="-I/usr/include/gdal" \
         GDAL==`gdal-config --version`
 
+# Install kubectl from Docker Hub.
+COPY --from=lachlanevenson/k8s-kubectl:v1.10.3 /usr/local/bin/kubectl /usr/local/bin/kubectl
+
 # Install basic requirements
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
+
+# Fix port-forward issue
+# Can remove once this is released to PyPI
+# https://github.com/dask/dask-kubernetes/commit/ba2f3aa6390f5731f01942e3bb7f501921ef67e9
+RUN pip install git+https://github.com/dask/dask-kubernetes
 
 # Install oxeo-flows
 COPY . oxeo-flows

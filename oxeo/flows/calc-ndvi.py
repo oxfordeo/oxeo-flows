@@ -1,18 +1,19 @@
 import json
 import os
-from datetime import date, datetime, timedelta
-from typing import List, Optional, Tuple, Union
+from datetime import datetime, timedelta
+from typing import List, Optional
 
 import dateparser  # type: ignore
+from dask_kubernetes import KubeCluster, make_pod_spec
 import prefect
 import pystac_client
 import requests  # type: ignore
 import stackstac
 from prefect import Flow, Parameter, task, unmapped
+from prefect.executors import DaskExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from pydantic import BaseModel, Field, conlist
 from pyproj import CRS, Transformer
 from pystac.item import Item
 from rasterio import features
@@ -21,59 +22,7 @@ from rasterio.errors import RasterioIOError
 from shapely import geometry
 from shapely.ops import transform as transform_proj
 
-Point = Tuple[float, float]
-LinearRing = conlist(Point, min_items=4)
-PolygonCoords = conlist(LinearRing, min_items=1)
-MultiPolygonCoords = conlist(PolygonCoords, min_items=1)
-BBox = Tuple[float, float, float, float]  # 2D bbox
-
-
-class Geometry(BaseModel):
-    type: str = Field(..., example="Polygon")
-    coordinates: Union[PolygonCoords, MultiPolygonCoords, Point] = Field(  # type: ignore
-        ..., example=[[[1, 3], [2, 2], [4, 4], [1, 3]]]
-    )
-
-    def get(self, attr):
-        return getattr(self, attr)
-
-
-class Feature(BaseModel):
-    type: str = Field("Feature", const=True)
-    geometry: Geometry
-    properties: Optional[dict]
-    id: Optional[str]  # id corresponding to db entry. If present, updates db entry.
-    bbox: Optional[BBox]
-    labels: Optional[List[str]]
-
-
-class FeatureCollection(BaseModel):
-    type: str = Field("FeatureCollection", const=True)
-    features: List[Feature]
-    properties: Optional[dict]
-
-    def __iter__(self):
-        """iterate over features"""
-        return iter(self.features)
-
-    def __len__(self):
-        """return features length"""
-        return len(self.features)
-
-    def __getitem__(self, index):
-        """get feature at a given index"""
-        return self.features[index]
-
-
-class EventCreate(BaseModel):
-    labels: Union[str, List[str]]
-    aoi_id: int
-    datetime: date
-    keyed_values: dict
-
-
-repo_name = "oxfordeo/oxeo-flows"
-prefect_secret_github_token = "GITHUB"
+from oxeo.flows.models import Feature, EventCreate
 
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
@@ -206,6 +155,55 @@ def load(events: List[EventCreate]) -> bool:
     return True
 
 
+image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest"
+repo_name = "oxfordeo/oxeo-flows"
+prefect_secret_github_token = "GITHUB"
+
+
+def dynamic_cluster(**kwargs):
+    n_workers = 5
+    memory = "8Gi"
+    cpu = 2
+    gpu = 0
+
+    logger = prefect.context.get("logger")
+    logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
+    if gpu > 0:
+        logger.warning("Creating GPU cluster!")
+
+    container_config = {
+        "resources": {
+            "limits": {
+                "cpu": cpu,
+                "memory": memory,
+                # "nvidia.com/gpu": gpu,
+            },
+            "requests": {
+                "cpu": cpu,
+                "memory": memory,
+                # "nvidia.com/gpu": gpu,
+            },
+        }
+    }
+
+    pod_spec = make_pod_spec(
+        image=image,
+        extra_container_config=container_config,
+        memory_limit=memory,
+    )
+    pod_spec.spec.containers[0].args.append("--no-dashboard")
+
+    root_spec = make_pod_spec(image=image)
+    root_spec.spec.containers[0].args.append("--no-dashboard")
+
+    return KubeCluster(
+        n_workers=n_workers,
+        pod_template=pod_spec,
+        scheduler_pod_template=root_spec,
+        **kwargs,
+    )
+
+
 def create_flow():
     storage = GitHub(
         repo=repo_name,
@@ -213,13 +211,18 @@ def create_flow():
         access_token_secret=prefect_secret_github_token,
     )
     run_config = KubernetesRun(
-        image="413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest",
+        image=image,
+    )
+    executor = DaskExecutor(
+        cluster_class=dynamic_cluster,
+        adapt_kwargs={"maximum": 8},
     )
 
     with Flow(
         "calc-ndvi",
         storage=storage,
         run_config=run_config,
+        executor=executor,
     ) as flow:
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")

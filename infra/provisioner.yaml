@@ -1,0 +1,19 @@
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["on-demand"]
+  limits:
+    resources:
+      cpu: 1000
+  provider:
+    instanceProfile: eksctl-KarpenterNodeInstanceProfile-oxeo-eks
+    subnetSelector:
+      karpenter.sh/discovery: oxeo-eks
+    securityGroupSelector:
+      karpenter.sh/discovery: oxeo-eks
+  ttlSecondsAfterEmpty: 30

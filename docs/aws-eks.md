@@ -19,7 +19,8 @@ aws ecr get-login-password --region eu-central-1 | \
   docker login --username AWS --password-stdin 413730540186.dkr.ecr.eu-central-1.amazonaws.com
 ```
 
-Create a cluster (this takes long):
+Create a cluster (this takes long).
+(But don't actually do this! Do it with Karpenter as described below.)
 ```bash
 eksctl create cluster --name oxeo-eks --region eu-central-1
 ```
@@ -32,6 +33,22 @@ aws eks update-kubeconfig --region eu-central-1 --name oxeo-eks
 Check that it's loaded:
 ```bash
 kubectl config current-context
+```
+
+## Create a cluster with Karpenter scaling
+I did this using the [eksctl instructions](https://eksctl.io/usage/eksctl-karpenter/), but that's limited to Karpenter `v0.9.1` for some reason.
+
+There are also the generic [karpenter instructions](https://karpenter.sh/v0.12.0/getting-started/getting-started-with-eksctl/) with full IAM instructions.
+
+I didn't do the IAM stuff from those instructions, but I did do IAM stuff while I was trying to get Cluster Autoscaler to work, following [these AWS instructions](https://docs.aws.amazon.com/eks/latest/userguide/autoscaling.html#cluster-autoscaler). It's possible some of those steps are necessary! Otherwise just try the karpenter instructions from above.
+
+```bash
+eksctl create cluster -f infra/cluster.yaml
+```
+
+Then add the provisioner deployment:
+```bash
+kubectl apply -f infra/provisioner.yaml
 ```
 
 ## Roles
@@ -50,4 +67,13 @@ Now any oxeo-dev user can load the config for a cluster by assuming the role:
 aws eks --region eu-central-1 update-kubeconfig \
   --name oxeo-eks \
   --role-arn "arn:aws:iam::413730540186:role/eksClusterRole"
+```
+
+## Run the Prefect Agent
+As before:
+```bash
+export PREFECT_KUB_KEY=...
+cat infra/kubernetes-agent.yaml \
+  | sed "s/API_KEY_HERE/$PREFECT_KUB_KEY/g" \
+  | kubectl apply -f -
 ```
