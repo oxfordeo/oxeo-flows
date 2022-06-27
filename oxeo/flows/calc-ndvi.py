@@ -27,9 +27,16 @@ from oxeo.flows.models import Feature, EventCreate
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
 def extract(_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Feature:
-
     logger = prefect.context.get("logger")
     logger.info(f"Extracting AOI {_id}")
+
+    logger.warning("Checking torch and CUDA")
+    try:
+        import torch
+        logger.warning(f"{torch.cuda.is_available()=}")
+        logger.warning(f"{torch.cuda.device_count()=}")
+    except Exception:
+        pass
 
     # login
     if not U or not P:
@@ -61,7 +68,6 @@ def stac(
     start_datetime: datetime,
     end_datetime: datetime,
 ) -> List[Item]:
-
     logger = prefect.context.get("logger")
 
     URL = "https://earth-search.aws.element84.com/v0"
@@ -161,10 +167,10 @@ prefect_secret_github_token = "GITHUB"
 
 
 def dynamic_cluster(**kwargs):
-    n_workers = 5
-    memory = "8Gi"
-    cpu = 2
-    gpu = 0
+    n_workers = prefect.context.parameters["n_workers"]
+    memory = prefect.context.parameters["memory_per_worker"]
+    cpu = prefect.context.parameters["cpu_per_worker"]
+    gpu = prefect.context.parameters["gpu_per_worker"]
 
     logger = prefect.context.get("logger")
     logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
@@ -176,12 +182,12 @@ def dynamic_cluster(**kwargs):
             "limits": {
                 "cpu": cpu,
                 "memory": memory,
-                # "nvidia.com/gpu": gpu,
+                "nvidia.com/gpu": gpu,
             },
             "requests": {
                 "cpu": cpu,
                 "memory": memory,
-                # "nvidia.com/gpu": gpu,
+                "nvidia.com/gpu": gpu,
             },
         }
     }
@@ -224,6 +230,11 @@ def create_flow():
         run_config=run_config,
         executor=executor,
     ) as flow:
+        flow.add_task(Parameter("n_workers", default=3))
+        flow.add_task(Parameter("memory_per_worker", default="8G"))
+        flow.add_task(Parameter("cpu_per_worker", default=2))
+        flow.add_task(Parameter("gpu_per_worker", default=0))
+
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")
         aoi_id = Parameter(name="aoi_id", default=1)

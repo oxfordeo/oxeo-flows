@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1.0.0-experimental
-FROM nvidia/cuda:11.3.1-base-ubuntu20.04
+#FROM nvidia/cuda:11.3.1-base-ubuntu20.04
+#FROM python:3.9.13-slim-bullseye
+FROM ubuntu:20.04
 
 # Env
 ENV PYTHON_VERSION 3.9.13
 ENV PYTHONUNBUFFERED=1
 ENV TZ=UTC
 ENV DEBIAN_FRONTEND=noninteractive
-ARG PREFECT
-ENV PREFECT__CLOUD__API_KEY $PREFECT
 
 # Install deps
 RUN apt-get update && \

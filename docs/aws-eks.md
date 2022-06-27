@@ -77,3 +77,8 @@ cat infra/kubernetes-agent.yaml \
   | sed "s/API_KEY_HERE/$PREFECT_KUB_KEY/g" \
   | kubectl apply -f -
 ```
+
+## Enable GPU support
+```bash
+kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.12.2/nvidia-device-plugin.yml
+```
