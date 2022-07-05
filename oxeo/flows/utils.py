@@ -1,15 +1,16 @@
 from datetime import datetime
 from typing import Union
 
-import geopandas as gpd
+# import geopandas as gpd
 import prefect
 from prefect import task
 from prefect.tasks.postgres.postgres import PostgresFetch
 
 import oxeo.flows.config as cfg
-from oxeo.core.models.data import data2gdf
-from oxeo.core.models.tile import TilePath, get_all_paths
-from oxeo.core.models.waterbody import WaterBody, get_waterbodies
+
+# from oxeo.core.models.data import data2gdf
+# from oxeo.core.models.tile import TilePath, get_all_paths
+# from oxeo.core.models.waterbody import WaterBody, get_waterbodies
 
 
 @task(log_stdout=True)
@@ -107,11 +108,11 @@ def fetch_water_list_task(
     return data
 
 
-@task(log_stdout=True)
-def data2gdf_task(
-    data: list[tuple[int, str, str]],
-) -> gpd.GeoDataFrame:
-    return data2gdf(data)
+# @task(log_stdout=True)
+# def data2gdf_task(
+# data: list[tuple[int, str, str]],
+# ) -> gpd.GeoDataFrame:
+# return data2gdf(data)
 
 
 @task(log_stdout=True)
@@ -119,27 +120,27 @@ def gdf2geom_task(gdf):
     return gdf.unary_union
 
 
-@task(log_stdout=True)
-def get_all_paths_task(
-    gdf: gpd.GeoDataFrame,
-    constellations: list[str],
-    root_dir: str = "gs://oxeo-water/prod",
-) -> list[TilePath]:
-    logger = prefect.context.get("logger")
-    all_tilepaths = get_all_paths(gdf, constellations, root_dir)
-    logger.info(
-        f"All tiles for the supplied geometry: {[(tp.tile.id, tp.constellation) for tp in all_tilepaths]}"
-    )
-    return all_tilepaths
+# @task(log_stdout=True)
+# def get_all_paths_task(
+# gdf: gpd.GeoDataFrame,
+# constellations: list[str],
+# root_dir: str = "gs://oxeo-water/prod",
+# ) -> list[TilePath]:
+# logger = prefect.context.get("logger")
+# all_tilepaths = get_all_paths(gdf, constellations, root_dir)
+# logger.info(
+# f"All tiles for the supplied geometry: {[(tp.tile.id, tp.constellation) for tp in all_tilepaths]}"
+# )
+# return all_tilepaths
 
 
-@task(log_stdout=True)
-def get_waterbodies_task(
-    gdf: gpd.GeoDataFrame,
-    constellations: list[str],
-    root_dir: str = "gs://oxeo-water/prod",
-) -> list[WaterBody]:
-    logger = prefect.context.get("logger")
-    logger.info("Getting separate tiles and paths for each waterbody")
-    waterbodies = get_waterbodies(gdf, constellations, root_dir)
-    return waterbodies
+# @task(log_stdout=True)
+# def get_waterbodies_task(
+# gdf: gpd.GeoDataFrame,
+# constellations: list[str],
+# root_dir: str = "gs://oxeo-water/prod",
+# ) -> list[WaterBody]:
+# logger = prefect.context.get("logger")
+# logger.info("Getting separate tiles and paths for each waterbody")
+# waterbodies = get_waterbodies(gdf, constellations, root_dir)
+# return waterbodies

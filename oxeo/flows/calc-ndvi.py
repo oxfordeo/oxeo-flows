@@ -4,13 +4,14 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import dateparser  # type: ignore
-from dask_kubernetes import KubeCluster, make_pod_spec
 import prefect
 import pystac_client
 import requests  # type: ignore
 import stackstac
+from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task, unmapped
-from prefect.executors import DaskExecutor
+from prefect.client import Secret
+from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
@@ -22,7 +23,7 @@ from rasterio.errors import RasterioIOError
 from shapely import geometry
 from shapely.ops import transform as transform_proj
 
-from oxeo.flows.models import Feature, EventCreate
+from oxeo.flows.models import EventCreate, Feature
 
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
@@ -33,6 +34,7 @@ def extract(_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Featu
     logger.warning("Checking torch and CUDA")
     try:
         import torch
+
         logger.warning(f"{torch.cuda.is_available()=}")
         logger.warning(f"{torch.cuda.device_count()=}")
     except Exception:
@@ -156,8 +158,23 @@ def transform(aoi: Feature, item: Item) -> EventCreate:
 
 @task(log_stdout=True)
 def load(events: List[EventCreate]) -> bool:
-    print("Loading... (not actually)")
-    print(events)
+    print("Loading events into DB")
+
+    for secret in ["PG_DB_USER", "PG_DB_PW", "PG_DB_HOST", "PG_DB_NAME"]:
+        os.environ[secret] = Secret(secret).get()
+
+    # TODO
+    # These must only be imported here, as api.models.database
+    # loads the env vars in global scope and creates the DB URL
+    from oxeo.api.controllers.geom import create_events
+    from oxeo.api.models.database import SessionLocal
+
+    db = SessionLocal()
+    create_events(events, db, None)
+    db.close()
+
+    print(f"Successfully inserted {len(events)=} events into the db")
+
     return True
 
 
@@ -250,3 +267,6 @@ def create_flow():
 
 
 flow = create_flow()
+
+if __name__ == "__main__":
+    flow.run(executor=LocalExecutor())

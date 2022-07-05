@@ -82,3 +82,12 @@ cat infra/kubernetes-agent.yaml \
 ```bash
 kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.12.2/nvidia-device-plugin.yml
 ```
+
+## Connecting to RDS from within EKS
+What a pain!
+
+Useful stuff here to setup peering between the EKS VPC and the RDS VPC: [link](https://dev.to/bensooraj/accessing-amazon-rds-from-aws-eks-2pc3#setup-the-eks-cluster).
+
+Just set up an RDS DB and EKS cluster as normal, and then followed the instructions on setting up the peering. Make sure to use the correct CIDR details from the peering screen.
+
+
