@@ -230,7 +230,7 @@ def dynamic_cluster(**kwargs):
 def create_flow():
     storage = GitHub(
         repo=repo_name,
-        path="oxeo/flows/calc-ndvi.py",
+        path="oxeo/flows/ndvi.py",
         access_token_secret=prefect_secret_github_token,
     )
     run_config = KubernetesRun(
@@ -242,7 +242,7 @@ def create_flow():
     )
 
     with Flow(
-        "calc-ndvi",
+        "ndvi",
         storage=storage,
         run_config=run_config,
         executor=executor,
