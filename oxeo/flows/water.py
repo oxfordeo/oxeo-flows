@@ -2,7 +2,6 @@ import json
 import os
 from typing import List, Optional, Union
 
-import dask.array as da
 import geopandas as gpd
 import pandas as pd
 import requests  # type: ignore[import]
@@ -23,6 +22,8 @@ from oxeo.flows.models import EventCreate
 from oxeo.water.models.segmentation import (
     DaskSegmentationPredictor,
     reconstruct_image_from_patches,
+    reduce_to_timeseries,
+    stack_preds,
 )
 
 Box = tuple[float, float, float, float]
@@ -88,6 +89,12 @@ def predict(
 
     bbox = BBox(box, crs=CRS.WGS84)
 
+    print("Connect client")
+    if cluster:
+        client = Client(cluster)
+    else:
+        client = Client(n_workers=8, threads_per_worker=1, memory_limit="64GB")
+
     print("Creating graph")
     s2_predictor = DaskSegmentationPredictor(
         ckpt_path=ckpt_path,
@@ -103,31 +110,21 @@ def predict(
         search_params={},
     )
 
-    print("Submitting to compute")
-    if cluster:
-        client = Client(cluster)
-    else:
-        client = Client(n_workers=8, threads_per_worker=1, memory_limit="64GB")
-    res = client.compute(preds)
+    stack = stack_preds(preds)
+    revisits, _, target_h, target_w = aoi.shape
+    mask = reconstruct_image_from_patches(stack, revisits, target_h, target_w, 250)
+    ts = reduce_to_timeseries(mask)
 
-    print("Getting stack")
-    stack = da.vstack([e.result() for e in res])
+    print("Compute results")
+    res = client.compute(ts)
+    water_ts = res.result().compute()
 
-    print(f"Reconstruct stack, {aoi.shape=}, {stack.shape=}")
-    mask = reconstruct_image_from_patches(
-        stack,
-        aoi.shape[0],
-        aoi.shape[-2],
-        aoi.shape[-1],
-        patch_size=250,
-    )
-
+    print("Close cluster (if present)")
     if cluster:
         cluster.close()
 
-    print("Reduce to time series")
+    print("Create Events")
     dates = aoi.time.data
-    water = (mask == 1).sum(axis=(1, 2)).compute()
     events = [
         EventCreate(
             labels="water_extents",
@@ -135,7 +132,7 @@ def predict(
             datetime=pd.Timestamp(d).date(),
             keyed_values={"water_pixels": int(w)},
         )
-        for d, w in zip(dates, water)
+        for d, w in zip(dates, water_ts)
     ]
 
     return events
