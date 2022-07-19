@@ -8,6 +8,7 @@ import prefect
 import pystac_client
 import requests  # type: ignore
 import stackstac
+from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task, unmapped
 from prefect.client import Secret
@@ -188,6 +189,9 @@ def dynamic_cluster(**kwargs):
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
+    
+    if n_workers == 0:
+        return LocalCluster()
 
     logger = prefect.context.get("logger")
     logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
