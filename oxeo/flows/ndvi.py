@@ -145,6 +145,7 @@ def transform(aoi: Feature, item: Item) -> EventCreate:
 
     # cast to pandas
     df = result.to_pandas()
+    df = df.fillna(0)
     df.index = df.index.date
 
     event = EventCreate(
