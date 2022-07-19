@@ -239,6 +239,11 @@ def create_flow():
     )
     run_config = KubernetesRun(
         image=image,
+        cpu_limit=4,
+        cpu_request=4,
+        memory_limit="16G",
+        memory_request="16G",
+
     )
     executor = DaskExecutor(
         cluster_class=dynamic_cluster,
