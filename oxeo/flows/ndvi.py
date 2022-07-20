@@ -65,7 +65,7 @@ def extract(_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Featu
     return Feature(**j["features"][0])
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
 def stac(
     aoi: Feature,
     start_datetime: datetime,
@@ -93,7 +93,7 @@ def stac(
     return items
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
 def transform(aoi: Feature, item: Item) -> EventCreate:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
@@ -190,7 +190,7 @@ def dynamic_cluster(**kwargs):
     memory = prefect.context.parameters["memory_per_worker"]
     cpu = prefect.context.parameters["cpu_per_worker"]
     gpu = prefect.context.parameters["gpu_per_worker"]
-    
+
     if n_workers == 0:
         return LocalCluster()
 
