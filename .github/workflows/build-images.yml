@@ -41,8 +41,24 @@ jobs:
         run: |
           docker build \
           --build-arg  BUILDKIT_INLINE_CACHE=1 \
+          --build-arg  WATER=water \
           --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --tag        $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --file       infra/Dockerfile \
+          --ssh        default .
+
+      - name: Build TORCH Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: flows
+          #IMAGE_TAG: ${{ github.sha }}
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build \
+          --build-arg  BUILDKIT_INLINE_CACHE=1 \
+          --build-arg  WATER=torch \
+          --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
+          --tag        $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
           --file       infra/Dockerfile \
           --ssh        default .
 
@@ -53,3 +69,11 @@ jobs:
           #IMAGE_TAG: ${{ github.sha }}
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Push TORCH Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: flows
+          #IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest

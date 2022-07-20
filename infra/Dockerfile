@@ -48,6 +48,7 @@ RUN pip install -r requirements.txt
 RUN pip install git+https://github.com/dask/dask-kubernetes
 
 # Install oxeo-flows
+ARG WATER=torch
 COPY . oxeo-flows
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh pip install oxeo-flows/
+RUN --mount=type=ssh pip install ./oxeo-flows[$WATER]
