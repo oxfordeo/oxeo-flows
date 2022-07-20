@@ -22,6 +22,10 @@ from oxeo.flows.models import EventCreate
 
 Box = tuple[float, float, float, float]
 
+image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:torch-latest"
+repo_name = "oxfordeo/oxeo-flows"
+prefect_secret_github_token = "GITHUB"
+
 
 @task(log_stdout=True)
 def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
@@ -47,7 +51,6 @@ def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Bo
 def create_cluster(n_workers=1, cpu=2, memory="8G") -> Union[KubeCluster, None]:
     if n_workers == 0:
         return None
-    image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest"
     pod_spec = make_pod_spec(
         image=image,
         cpu_request=cpu,
@@ -159,11 +162,6 @@ def load(events: List[EventCreate]) -> bool:
     print(f"Successfully inserted {len(events)=} events into the db")
 
     return True
-
-
-image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest"
-repo_name = "oxfordeo/oxeo-flows"
-prefect_secret_github_token = "GITHUB"
 
 
 def create_flow():
