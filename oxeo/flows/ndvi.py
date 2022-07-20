@@ -250,7 +250,7 @@ def create_flow():
         run_config=run_config,
         executor=executor,
     ) as flow:
-        flow.add_task(Parameter("n_workers", default=3))
+        flow.add_task(Parameter("n_workers", default=0))
         flow.add_task(Parameter("memory_per_worker", default="8G"))
         flow.add_task(Parameter("cpu_per_worker", default=2))
         flow.add_task(Parameter("gpu_per_worker", default=0))
