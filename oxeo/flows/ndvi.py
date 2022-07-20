@@ -5,6 +5,7 @@ from typing import List, Optional
 
 import prefect
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import httpx
 from dask.distributed import LocalCluster
@@ -25,6 +26,7 @@ Box = tuple[float, float, float, float]
 
 @task(log_stdout=True)
 def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
+    print(f"{aoi_id=}")
     # login
     if not U or not P:
         U = os.environ.get("username")
@@ -74,6 +76,7 @@ def transform(
     res = ndvi_red.compute()
 
     ndvi_ts = res.data
+    ndvi_ts = np.nan_to_num(ndvi_ts, nan=0)
     dates = ndvi_red.time.data
 
     events = [
@@ -81,7 +84,7 @@ def transform(
             labels="ndvi",
             aoi_id=aoi_id,
             datetime=pd.Timestamp(d).date(),
-            keyed_values={"mean_value": int(w)},
+            keyed_values={"mean_value": float(w)},
         )
         for d, w in zip(dates, ndvi_ts)
     ]
