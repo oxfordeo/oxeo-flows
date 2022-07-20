@@ -35,7 +35,7 @@ jobs:
           pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==`gdal-config --version`
 
       - name: Install dependencies
-        run: pip install .
+        run: pip install .[water]
 
       - name: Register with Prefect
         env:

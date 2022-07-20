@@ -19,12 +19,6 @@ from sentinelhub import CRS, BBox, SHConfig
 from oxeo.core.constants import BAND_PREDICTOR_ORDER
 from oxeo.core.stac.constants import ELEMENT84_URL, USWEST_URL
 from oxeo.flows.models import EventCreate
-from oxeo.water.models.segmentation import (
-    DaskSegmentationPredictor,
-    reconstruct_image_from_patches,
-    reduce_to_timeseries,
-    stack_preds,
-)
 
 Box = tuple[float, float, float, float]
 
@@ -77,6 +71,13 @@ def predict(
     end_date,
     cluster: Optional[KubeCluster] = None,
 ) -> list[EventCreate]:
+    from oxeo.water.models.segmentation import (
+        DaskSegmentationPredictor,
+        reconstruct_image_from_patches,
+        reduce_to_timeseries,
+        stack_preds,
+    )
+
     shconfig = SHConfig()
     shconfig.sh_base_url = USWEST_URL
     shconfig.sh_client_id = str(Secret("SH_CLIENT_ID").get())
