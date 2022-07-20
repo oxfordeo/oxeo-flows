@@ -77,8 +77,11 @@ def stac(
         ),
         collections=["sentinel-s2-l2a-cogs"],
         datetime=f"{start_datetime.isoformat()[0:10]}/{end_datetime.isoformat()[0:10]}",
-    ).get_all_items()
+        max_items=None,
+        limit=10000,
+    ).items()
 
+    items = [i for i in items]
     logger.info(f"Got {len(items)} STAC items")
 
     return items
