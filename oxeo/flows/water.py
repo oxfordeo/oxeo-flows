@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 
 import geopandas as gpd
 import pandas as pd
-import requests  # type: ignore[import]
+import httpx
 import s3fs
 from dask_kubernetes import KubeCluster, make_pod_spec
 from distributed import Client
@@ -29,18 +29,25 @@ prefect_secret_github_token = "GITHUB"
 
 @task(log_stdout=True)
 def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
+    # login
+    if not U or not P:
+        U = os.environ.get("username")
+        P = os.environ.get("password")
+
     base_url = "https://api.oxfordeo.com/"
-    authurl = os.path.join(base_url, "auth", "token")
-    r = requests.post(
-        authurl, data={"username": "admin@oxfordeo.com", "password": "Helsinki"}
-    )
+    client = httpx.Client(base_url=base_url)
+
+    print("Get token")
+    r = client.post("auth/token", data={"username": U, "password": P})
     token = json.loads(r.text)["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    query = dict(id=aoi_id)
-    aoiurl = os.path.join(base_url, "aoi")
-    r = requests.get(aoiurl, headers=headers, json=query)
+    print("Get AOI")
+    r = client.get("aoi/", params=dict(id=aoi_id), headers=headers)
     j = json.loads(r.text)
+
+    print("Close httpx client")
+    client.close()
     gdf = gpd.GeoDataFrame.from_features(j)
     box: Box = tuple(gdf.total_bounds)  # type: ignore[assignment]
     print(box)
