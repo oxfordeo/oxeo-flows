@@ -6,7 +6,7 @@ from typing import List, Optional
 import dateparser  # type: ignore
 import prefect
 import pystac_client
-import requests  # type: ignore
+import httpx
 import stackstac
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
@@ -32,37 +32,28 @@ def extract(_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Featu
     logger = prefect.context.get("logger")
     logger.info(f"Extracting AOI {_id}")
 
-    logger.warning("Checking torch and CUDA")
-    try:
-        import torch
-
-        logger.warning(f"{torch.cuda.is_available()=}")
-        logger.warning(f"{torch.cuda.device_count()=}")
-    except Exception:
-        pass
-
     # login
     if not U or not P:
         U = os.environ.get("username")
         P = os.environ.get("password")
 
     base_url = "https://api.oxfordeo.com/"
+    client = httpx.Client(base_url=base_url)
 
-    authurl = os.path.join(base_url, "auth", "token")
-    r = requests.post(authurl, data={"username": U, "password": P})
+    print("Get token")
+    r = client.post("auth/token", data={"username": U, "password": P})
     token = json.loads(r.text)["access_token"]
-
     headers = {"Authorization": f"Bearer {token}"}
 
-    # query
-    query = dict(
-        id=_id,
-    )
-
-    aoiurl = os.path.join(base_url, "aoi")
-    r = requests.get(aoiurl, headers=headers, json=query)
+    print("Get AOI")
+    r = client.get("aoi/", params=dict(id=_id), headers=headers)
     j = json.loads(r.text)
-    return Feature(**j["features"][0])
+    ft = Feature(**j["features"][0])
+
+    print("Close httpx client")
+    client.close()
+
+    return ft
 
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
@@ -244,7 +235,6 @@ def create_flow():
         cpu_request=4,
         memory_limit="16G",
         memory_request="16G",
-
     )
     executor = DaskExecutor(
         cluster_class=dynamic_cluster,
