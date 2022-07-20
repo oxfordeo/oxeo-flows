@@ -78,7 +78,7 @@ def stac(
         collections=["sentinel-s2-l2a-cogs"],
         datetime=f"{start_datetime.isoformat()[0:10]}/{end_datetime.isoformat()[0:10]}",
         max_items=None,
-        limit=10000,
+        limit=100,
     ).items()
 
     items = [i for i in items]
