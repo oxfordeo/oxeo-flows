@@ -29,6 +29,7 @@ prefect_secret_github_token = "GITHUB"
 
 @task(log_stdout=True)
 def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
+    print(f"{aoi_id=}")
     # login
     if not U or not P:
         U = os.environ.get("username")
@@ -179,6 +180,10 @@ def create_flow():
     )
     run_config = KubernetesRun(
         image=image,
+        cpu_limit=8,
+        cpu_request=8,
+        memory_limit="64G",
+        memory_request="64G",
     )
     with Flow(
         "water",
