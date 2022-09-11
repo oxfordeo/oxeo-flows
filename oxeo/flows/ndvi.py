@@ -1,13 +1,13 @@
 import json
 import os
 from datetime import timedelta
-from typing import List, Optional
+from typing import Optional
 
-import prefect
 import geopandas as gpd
+import httpx
 import numpy as np
 import pandas as pd
-import httpx
+import prefect
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task
@@ -16,10 +16,10 @@ from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from oxeo.water.models.ndvi import NDVIPredictor
-from sentinelhub import BBox, CRS
+from sentinelhub import CRS, BBox
 
 from oxeo.flows.models import EventCreate
+from oxeo.water.models.ndvi import NDVIPredictor
 
 Box = tuple[float, float, float, float]
 
@@ -54,7 +54,12 @@ def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Bo
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
 def transform(
-    aoi_id: int, box: Box, start_datetime: str, end_datetime: str
+    aoi_id: int,
+    box: Box,
+    start_datetime: str,
+    end_datetime: str,
+    catalog: str,
+    data_collection: str,
 ) -> list[EventCreate]:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
@@ -62,10 +67,9 @@ def transform(
     bbox = BBox(box, crs=CRS.WGS84)
 
     predictor = NDVIPredictor()
-    URL = "https://earth-search.aws.element84.com/v0"
     ndvi = predictor.predict_stac_aoi(
-        catalog=URL,
-        data_collection="sentinel-s2-l2a-cogs",
+        catalog=catalog,
+        data_collection=data_collection,
         bbox=bbox,
         time_interval=(start_datetime, end_datetime),
         search_params={"max_items": None},
@@ -93,7 +97,7 @@ def transform(
 
 
 @task(log_stdout=True)
-def load(events: List[EventCreate]) -> bool:
+def load(events: list[EventCreate]) -> bool:
     print("Loading events into DB")
 
     for secret in ["PG_DB_USER", "PG_DB_PW", "PG_DB_HOST", "PG_DB_NAME"]:
@@ -200,9 +204,17 @@ def create_flow():
         aoi_id = Parameter(name="aoi_id", default=1)
         start_datetime = Parameter(name="start_datetime", default="2020-01-01")
         end_datetime = Parameter(name="end_datetime", default="2020-01-08")
+        catalog = Parameter(
+            name="catalog", default="https://earth-search.aws.element84.com/v0"
+        )
+        data_collection = Parameter(
+            name="data_collection", default="sentinel-s2-l2a-cogs"
+        )
 
         box = get_box(aoi_id, api_username, api_password)
-        events = transform(aoi_id, box, start_datetime, end_datetime)
+        events = transform(
+            aoi_id, box, start_datetime, end_datetime, catalog, data_collection
+        )
         _ = load(events)
 
     return flow
