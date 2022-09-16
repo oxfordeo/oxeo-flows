@@ -29,7 +29,9 @@ BASE_URL = "https://api.oxfordeo.com/"
 
 @task(log_stdout=True)
 def get_aoi(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
-    print(f"{aoi_id=}")
+
+    logger = prefect.context.get("logger")
+    logger.info("Get AOI")
     # login
     if not U or not P:
         U = os.environ.get("username")
@@ -37,22 +39,20 @@ def get_aoi(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Bo
 
     client = httpx.Client(base_url=BASE_URL)
 
-    print("Get token")
     r = client.post("auth/token", data={"username": U, "password": P})
     token = json.loads(r.text)["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    print("Get AOI")
     r = client.get("aoi/", params=dict(id=aoi_id), headers=headers)
     aoi = json.loads(r.text)
 
-    print("Close httpx client")
+    aoi = aoi["features"][0]
+
     client.close()
 
-    print("aoi")
-    print(aoi)
+    logger.info(aoi)
 
-    return aoi["features"][0]
+    return aoi
 
 
 @task(log_stdout=True, max_retries=1, retry_delay=timedelta(seconds=10))
@@ -74,11 +74,11 @@ def transform(
     logger = prefect.context.get("logger")
     logger.info("tp transforming.")
 
-    if (
-        "agriculture_area" not in aoi["properties"]["labels"]
-        or "basin" not in aoi["properties"]["labels"]
+    if not (
+        "agricultural_area" in aoi["properties"]["labels"]
+        or "basin" in aoi["properties"]["labels"]
     ):
-        raise ValueError("AOI is not an agriculture area or basin")
+        raise ValueError("AOI is not an agricultural_area or basin")
 
     CHIRPS_STORE = "gs://oxeo-chirps/build2"
     SEAS_STORE = "gs://oxeo-seasonal/tp"
@@ -104,6 +104,7 @@ def transform(
     records = {m.date(): {} for m in all_months}
 
     if "back-cast" in include:
+        logger.info("INCLUDE: back-cast")
         # do the actual CHIRPS_SPI for each month
         chirps_summary = chirps_df.groupby("yr-mnth").sum()
         chirps_summary["month"] = (
@@ -120,8 +121,8 @@ def transform(
         ) / chirps_summary["SPI_std"]
         chirps_summary["sdt"] = pd.to_datetime(chirps_summary.index + "-01")
         chirps_summary.loc[
-            (chirps_summary["SPI"].isna()) & (chirps_summary["tp"] > 0), "SPI"
-        ] = np.inf
+            (chirps_summary["SPI"] == np.inf) & (chirps_summary["tp"] > 0), "SPI"
+        ] = 999.0
         chirps_summary.loc[
             (chirps_summary["SPI"].isna()) & (chirps_summary["tp"] == 0), "SPI"
         ] = 0
@@ -130,6 +131,7 @@ def transform(
             records[idx.date()]["CHIRPS_SPI_actual"] = spi
 
     if "month-offset" in include or "forecast" in include:
+
         # prep the seas dataframe
         seas_red = R_seas.reduce(geom, start_datetime, end_datetime)
         seas_df = seas_red.to_dataframe("tp")
@@ -204,9 +206,9 @@ def transform(
         seas_df_summary["RANK"] = seas_df_summary.groupby("time")["valid-yr-mo"].rank()
 
         # add an aoi-specific adjustment factor to go from SEAS-base to CHIRPS-base
-        seas_df_summary[
-            "tp"
-        ] *= 1.0  # aoi['properties']['SEAS2CHIRPS'] sum adjustmnet factor from CHIRPS
+        seas_df_summary["tp"] *= aoi["properties"][
+            "seas2chirps"
+        ]  # some adjustmnet factor from CHIRPS
 
         if "month-offset" in include:
             # seas forecast starts at the 13th of the month. For each month, get the first 12 days from CHIRPS, then get the last days from SEAS5
@@ -236,28 +238,30 @@ def transform(
             aoi["properties"]["CHIRPS_SPI"]["mean"]
         )
         seas_df_summary["SPI_std"] = seas_df_summary["valid-mo"].map(
-            aoi["properties"]["CHIRPS_STD"]["mean"]
+            aoi["properties"]["CHIRPS_SPI"]["mean"]
         )
         seas_df_summary["SPI"] = (
             seas_df_summary["tp"] - seas_df_summary["SPI_mean"]
         ) / seas_df_summary["SPI_std"]
 
         seas_df_summary.loc[
-            (seas_df_summary["SPI"].isna()) & (seas_df_summary["tp"] > 0), "SPI"
-        ] = np.inf
+            (seas_df_summary["SPI"] == np.inf) & (seas_df_summary["tp"] > 0), "SPI"
+        ] = 999.0
         seas_df_summary.loc[
             (seas_df_summary["SPI"].isna()) & (seas_df_summary["tp"] == 0), "SPI"
         ] = 0
 
         if "month-offset" in include:
+            logger.info("INCLUDE: month-offset")
             # write all rank==1 to events
             for idx, spi in seas_df_summary.loc[
                 seas_df_summary["RANK"] == 1, ["time", "SPI"]
             ].to_records(index=False):
-                records[idx.date()]["MIXED_SPI"] = spi
+                records[pd.to_datetime(idx).date()]["MIXED_SPI"] = spi
 
         if "forecast" in include:
             # write all RANK>1 to forecast events
+            logger.info("INCLUDE: forecast")
 
             for idx, ll in (
                 seas_df_summary.loc[seas_df_summary["RANK"] > 1]
@@ -265,24 +269,29 @@ def transform(
                 .apply(list)
                 .items()
             ):
-                records[idx.date()]["FORECAST_SPI"] = dict(zip(range(1, 7), ll))
+                records[pd.to_datetime(idx).date()]["FORECAST_SPI"] = dict(
+                    zip(range(1, 7), ll)
+                )
 
     events = [
         dict(
             labels=["total_precipitation"],
-            aoi_id=int(aoi["properties"]["id"]),
+            aoi_id=int(aoi["properties"]["aoi_id"]),
             datetime=idx.isoformat()[0:10],
             keyed_values=kvs,
         )
         for idx, kvs in records.items()
     ]
+    logger.info("Got events")
+    logger.info(events)
 
     return events
 
 
 @task(log_stdout=True)
 def load(events: list[dict], U: Optional[str] = None, P: Optional[str] = None) -> bool:
-    print("Loading events into DB")
+
+    logger = prefect.context.get("logger")
 
     # refresh headers
     if not U or not P:
@@ -291,19 +300,17 @@ def load(events: list[dict], U: Optional[str] = None, P: Optional[str] = None) -
 
     client = httpx.Client(base_url=BASE_URL)
 
-    print("Get token")
     r = client.post("auth/token", data={"username": U, "password": P})
     token = json.loads(r.text)["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    print("Get AOI")
     r = client.post("events/", json=events, headers=headers)
-    print("Status code", r.status_code)
+    if str(r.status_code) != "201":
+        raise ValueError(f"Status code: {r.status_code}")
 
-    print("Close httpx client")
     client.close()
 
-    print(f"Successfully inserted {len(events)=} events into the db")
+    logger.info(f"Successfully inserted {len(events)=} events into the db")
 
     return True
 
@@ -400,7 +407,7 @@ def create_flow():
 
         aoi = get_aoi(aoi_id, api_username, api_password)
         events = transform(aoi, start_datetime, end_datetime, include)
-        _ = load(events)
+        _ = load(events, api_username, api_password)
 
     return flow
 
@@ -408,4 +415,10 @@ def create_flow():
 flow = create_flow()
 
 if __name__ == "__main__":
-    flow.run(executor=LocalExecutor())
+    # print (help(flow.run))
+    flow.run(
+        parameters=dict(
+            aoi_id=2179, start_datetime="2012-01-01", end_datetime="2012-12-31"
+        ),
+        executor=LocalExecutor(),
+    )
