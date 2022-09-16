@@ -370,7 +370,7 @@ def dynamic_cluster(**kwargs):
 def create_flow():
     storage = GitHub(
         repo=repo_name,
-        path="oxeo/flows/tp_historic.py",
+        path="oxeo/flows/precip.py",
         access_token_secret=prefect_secret_github_token,
     )
     run_config = KubernetesRun(
