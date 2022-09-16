@@ -203,12 +203,9 @@ def transform(
         )  # .groupby('time').tail(6)
 
         # add the forecast month 'rank'
-        seas_df_summary["RANK"] = seas_df_summary.groupby("time")["valid-yr-mo"].rank()
-
-        # add an aoi-specific adjustment factor to go from SEAS-base to CHIRPS-base
-        seas_df_summary["tp"] *= aoi["properties"][
-            "seas2chirps"
-        ]  # some adjustmnet factor from CHIRPS
+        seas_df_summary["RANK"] = (
+            seas_df_summary.groupby("time")["valid-yr-mo"].rank().astype(int)
+        )
 
         if "month-offset" in include:
             # seas forecast starts at the 13th of the month. For each month, get the first 12 days from CHIRPS, then get the last days from SEAS5
@@ -216,7 +213,7 @@ def transform(
             chirps_first_12 = pd.DataFrame(
                 chirps_df.loc[chirps_df["day"] < 13].groupby("yr-mnth")["tp"].sum()
             )
-            chirps_first_12["RANK"] = 1.0
+            chirps_first_12["RANK"] = 1
 
             # merge on to seas_df_summary
             seas_df_summary = pd.merge(
@@ -229,20 +226,45 @@ def transform(
 
             seas_df_summary["chirps"] = seas_df_summary["chirps"].fillna(0)
 
-            seas_df_summary["tp"] += seas_df_summary["chirps"]
+            # seas_df_summary["tp"] += seas_df_summary["chirps"]
 
         seas_df_summary["valid-mo"] = (
             seas_df_summary["valid-yr-mo"].str.split("-").str[1].astype(int).astype(str)
         )
-        seas_df_summary["SPI_mean"] = seas_df_summary["valid-mo"].map(
+
+        seas_df_summary["chirps_SPI_mean"] = seas_df_summary["valid-mo"].map(
             aoi["properties"]["CHIRPS_SPI"]["mean"]
         )
-        seas_df_summary["SPI_std"] = seas_df_summary["valid-mo"].map(
-            aoi["properties"]["CHIRPS_SPI"]["mean"]
+        seas_df_summary["chirps_SPI_std"] = seas_df_summary["valid-mo"].map(
+            aoi["properties"]["CHIRPS_SPI"]["std"]
+        )
+        seas_df_summary["chirps_SPI"] = (
+            seas_df_summary["chirps"] - seas_df_summary["chirps_SPI_mean"] * 13 / 30.5
+        ) / (seas_df_summary["chirps_SPI_std"] * 13 / 30.5)
+
+        seas_df_summary["SPI_mean"] = seas_df_summary.apply(
+            lambda row: aoi["properties"]["SEAS_SPI"][row["valid-mo"]]["mean"][
+                str(float(row["RANK"]))
+            ],
+            axis=1,
+        )
+        seas_df_summary["SPI_std"] = seas_df_summary.apply(
+            lambda row: aoi["properties"]["SEAS_SPI"][row["valid-mo"]]["std"][
+                str(float(row["RANK"]))
+            ],
+            axis=1,
         )
         seas_df_summary["SPI"] = (
             seas_df_summary["tp"] - seas_df_summary["SPI_mean"]
         ) / seas_df_summary["SPI_std"]
+
+        # where Rank==1, blend  CHIRPS and SEAS
+        seas_df_summary.loc[seas_df_summary["RANK"] == 1, "SPI"] = (
+            seas_df_summary.loc[
+                seas_df_summary["RANK"] == 1, ["SPI", "chirps_SPI"]
+            ].sum(axis=1)
+            / 2
+        )
 
         seas_df_summary.loc[
             (seas_df_summary["SPI"] == np.inf) & (seas_df_summary["tp"] > 0), "SPI"
@@ -398,9 +420,9 @@ def create_flow():
 
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")
-        aoi_id = Parameter(name="aoi_id", default=1)
-        start_datetime = Parameter(name="start_datetime", default="2020-01-01")
-        end_datetime = Parameter(name="end_datetime", default="2020-01-08")
+        aoi_id = Parameter(name="aoi_id", default=2179)
+        start_datetime = Parameter(name="start_datetime", default="1993-01-01")
+        end_datetime = Parameter(name="end_datetime", default="2020-12-31")
         include = Parameter(
             name="include", default=["back-cast", "month-offset", "forecast"]
         )
