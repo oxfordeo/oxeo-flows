@@ -133,7 +133,7 @@ def deploy_ids(ids: list[int]) -> int:
             flow_id=FLOW_ID,
             run_name=str(_id),
             parameters=dict(
-                aoi_id=_id, start_datetime="1981-01-01", end_datetime="2020-12-31"
+                aoi_id=_id, start_datetime="1993-01-01", end_datetime="2020-12-31"
             ),
         )
         logger.info(f"Deployed {_id}:  {run_id}    {ii}/{len(ids)}")

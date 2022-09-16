@@ -399,7 +399,7 @@ def create_flow():
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")
         aoi_id = Parameter(name="aoi_id", default=2179)
-        start_datetime = Parameter(name="start_datetime", default="1981-01-01")
+        start_datetime = Parameter(name="start_datetime", default="1993-01-01")
         end_datetime = Parameter(name="end_datetime", default="2020-12-31")
         include = Parameter(
             name="include", default=["back-cast", "month-offset", "forecast"]
