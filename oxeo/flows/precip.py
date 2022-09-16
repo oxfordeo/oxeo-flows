@@ -386,7 +386,7 @@ def create_flow():
     )
 
     with Flow(
-        "tp_historic",
+        "precipitation",
         storage=storage,
         run_config=run_config,
         executor=executor,
