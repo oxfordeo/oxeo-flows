@@ -123,7 +123,7 @@ def load(events: list[dict], U: Optional[str] = None, P: Optional[str] = None) -
 
     client.close()
 
-    logger.info(f"Successfully inserted {len(events)=} events into the db")
+    logger.info(f"Successfully inserted {len(events)} events into the db")
 
     return True
 
