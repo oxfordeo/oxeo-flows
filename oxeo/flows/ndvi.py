@@ -11,7 +11,6 @@ import prefect
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task
-from prefect.client import Secret
 from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -60,9 +59,13 @@ def transform(
     end_datetime: str,
     catalog: str,
     data_collection: str,
+    search_params: str,
 ) -> list[EventCreate]:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
+
+    search_params = json.loads(search_params)
+    logger.info(f"Search params: {search_params}")
 
     bbox = BBox(box, crs=CRS.WGS84)
 
@@ -72,7 +75,7 @@ def transform(
         data_collection=data_collection,
         bbox=bbox,
         time_interval=(start_datetime, end_datetime),
-        search_params={"max_items": None},
+        search_params=search_params,
     )
 
     # call the compute with the dask backend
@@ -84,10 +87,10 @@ def transform(
     dates = ndvi_red.time.data
 
     events = [
-        EventCreate(
-            labels="ndvi",
+        dict(
+            labels=["ndvi"],
             aoi_id=aoi_id,
-            datetime=pd.Timestamp(d).date(),
+            datetime=pd.Timestamp(d).date().isoformat()[0:10],
             keyed_values={"mean_value": float(w)},
         )
         for d, w in zip(dates, ndvi_ts)
@@ -97,23 +100,30 @@ def transform(
 
 
 @task(log_stdout=True)
-def load(events: list[EventCreate]) -> bool:
+def load(events: list[dict], U: Optional[str] = None, P: Optional[str] = None) -> bool:
     print("Loading events into DB")
 
-    for secret in ["PG_DB_USER", "PG_DB_PW", "PG_DB_HOST", "PG_DB_NAME"]:
-        os.environ[secret] = Secret(secret).get()
+    logger = prefect.context.get("logger")
 
-    # TODO
-    # These must only be imported here, as api.models.database
-    # loads the env vars in global scope and creates the DB URL
-    from oxeo.api.controllers.geom import create_events
-    from oxeo.api.models.database import SessionLocal
+    # refresh headers
+    if not U or not P:
+        U = os.environ.get("username")
+        P = os.environ.get("password")
 
-    db = SessionLocal()
-    create_events(events, db, None)
-    db.close()
+    base_url = "https://api.oxfordeo.com/"
+    client = httpx.Client(base_url=base_url)
 
-    print(f"Successfully inserted {len(events)=} events into the db")
+    r = client.post("auth/token", data={"username": U, "password": P})
+    token = json.loads(r.text)["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r = client.post("events/", json=events, headers=headers)
+    if str(r.status_code) != "201":
+        raise ValueError(f"Status code: {r.status_code}")
+
+    client.close()
+
+    logger.info(f"Successfully inserted {len(events)=} events into the db")
 
     return True
 
@@ -210,12 +220,21 @@ def create_flow():
         data_collection = Parameter(
             name="data_collection", default="sentinel-s2-l2a-cogs"
         )
+        search_params = Parameter(
+            name="search_params", default=json.dumps({"max_items": None})
+        )
 
         box = get_box(aoi_id, api_username, api_password)
         events = transform(
-            aoi_id, box, start_datetime, end_datetime, catalog, data_collection
+            aoi_id,
+            box,
+            start_datetime,
+            end_datetime,
+            catalog,
+            data_collection,
+            search_params,
         )
-        _ = load(events)
+        _ = load(events, api_username, api_password)
 
     return flow
 
@@ -223,4 +242,20 @@ def create_flow():
 flow = create_flow()
 
 if __name__ == "__main__":
-    flow.run(executor=LocalExecutor())
+    flow.run(
+        parameters=dict(
+            aoi_id=2179,
+            start_datetime="2013-01-01",
+            end_datetime="2015-12-31",
+            catalog="https://landsatlook.usgs.gov/stac-server",
+            data_collection="landsat-c2l2-sr",
+            search_params=json.dumps(
+                {
+                    "query": {
+                        "eo:cloud_cover": {"gte": 0, "lte": 10},
+                    }
+                }
+            ),
+        ),
+        executor=LocalExecutor(),
+    )
