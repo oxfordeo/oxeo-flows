@@ -59,9 +59,13 @@ def transform(
     end_datetime: str,
     catalog: str,
     data_collection: str,
+    search_params: str,
 ) -> list[EventCreate]:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
+
+    search_params = json.loads(search_params)
+    logger.info(f"Search params: {search_params}")
 
     bbox = BBox(box, crs=CRS.WGS84)
 
@@ -71,7 +75,7 @@ def transform(
         data_collection=data_collection,
         bbox=bbox,
         time_interval=(start_datetime, end_datetime),
-        search_params={"max_items": None},
+        search_params=search_params,
     )
 
     # call the compute with the dask backend
@@ -216,10 +220,19 @@ def create_flow():
         data_collection = Parameter(
             name="data_collection", default="sentinel-s2-l2a-cogs"
         )
+        search_params = Parameter(
+            name="search_params", default=json.dumps({"max_items": None})
+        )
 
         box = get_box(aoi_id, api_username, api_password)
         events = transform(
-            aoi_id, box, start_datetime, end_datetime, catalog, data_collection
+            aoi_id,
+            box,
+            start_datetime,
+            end_datetime,
+            catalog,
+            data_collection,
+            search_params,
         )
         _ = load(events, api_username, api_password)
 
@@ -236,6 +249,13 @@ if __name__ == "__main__":
             end_datetime="2015-12-31",
             catalog="https://landsatlook.usgs.gov/stac-server",
             data_collection="landsat-c2l2-sr",
+            search_params=json.dumps(
+                {
+                    "query": {
+                        "eo:cloud_cover": {"gte": 0, "lte": 10},
+                    }
+                }
+            ),
         ),
         executor=LocalExecutor(),
     )
