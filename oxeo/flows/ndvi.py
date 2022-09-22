@@ -25,7 +25,7 @@ Box = tuple[float, float, float, float]
 
 @task(log_stdout=True)
 def get_box(aoi_id: int, U: Optional[str] = None, P: Optional[str] = None) -> Box:
-    print(f"{aoi_id=}")
+    print(f"aoi_id={aoi_id}")
     # login
     if not U or not P:
         U = os.environ.get("username")
@@ -72,9 +72,9 @@ def transform(
     AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 
     logger.info("PRINT ENV")
-    logger.info(f"{AWS_REQUEST_PAYER=}")
-    logger.info(f"{AWS_ACCESS_KEY_ID=}")
-    logger.info(f"{AWS_SECRET_ACCESS_KEY=}")
+    logger.info(f"AWS_REQUEST_PAYER={AWS_REQUEST_PAYER}")
+    logger.info(f"AWS_ACCESS_KEY_ID={AWS_ACCESS_KEY_ID}")
+    logger.info(f"AWS_SECRET_ACCESS_KEY={AWS_SECRET_ACCESS_KEY}")
 
     bbox = BBox(box, crs=CRS.WGS84)
 
@@ -152,7 +152,7 @@ def dynamic_cluster(**kwargs):
         return LocalCluster()
 
     logger = prefect.context.get("logger")
-    logger.info(f"Creating cluster with {cpu=}, {memory=}, {gpu=}")
+    logger.info(f"Creating cluster with cpu={cpu}, memory={memory}, gpu={gpu}")
     if gpu > 0:
         logger.warning("Creating GPU cluster!")
 
