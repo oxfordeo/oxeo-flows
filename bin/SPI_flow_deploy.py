@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 from typing import Optional
 
 import httpx
@@ -53,6 +54,7 @@ def get_all_ids(client: Optional[httpx.Client] = None) -> list[str]:
             )
         ),
         headers=headers,
+        timeout=30,
     )
     ag_fc = json.loads(ag_fc.text)
 
@@ -72,6 +74,7 @@ def get_all_ids(client: Optional[httpx.Client] = None) -> list[str]:
                 )
             ),
             headers=headers,
+            timeout=30,
         )
 
         ag_fc = json.loads(ag_fc.text)
@@ -86,13 +89,17 @@ def get_all_ids(client: Optional[httpx.Client] = None) -> list[str]:
                 labels=json.dumps(["basin"]),
                 geometry=json.dumps(geometry.mapping(aoi_geom)),
                 centroids=True,
+                limit=100,
                 page=0,
             )
         ),
         headers=headers,
+        timeout=30,
     )
 
     basin_fc = json.loads(basin_fc.text)
+
+    # print (basin_fc)
 
     basin_ids = [ft["id"] for ft in basin_fc["features"]]
 
@@ -107,10 +114,12 @@ def get_all_ids(client: Optional[httpx.Client] = None) -> list[str]:
                     labels=json.dumps(["basin"]),
                     geometry=json.dumps(geometry.mapping(aoi_geom)),
                     centroids=True,
+                    limit=100,
                     page=ii,
                 )
             ),
             headers=headers,
+            timeout=30,
         )
 
         basin_fc = json.loads(basin_fc.text)
@@ -140,8 +149,12 @@ def deploy_ids(ids: list[int]) -> int:
 
 
 if __name__ == "__main__":
-    all_ids = sorted(get_all_ids())
+    if not os.path.exists("./all_ids.pkl"):
+        all_ids = sorted(get_all_ids())
+        pickle.dump(all_ids, open("./all_ids.pkl", "wb"))
+    else:
+        all_ids = pickle.load(open("./all_ids.pkl", "rb"))
 
-    deploy_ids(all_ids[0:10])
+    deploy_ids(all_ids[1000:])
 
     logger.info("DONE!")
