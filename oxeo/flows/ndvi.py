@@ -67,6 +67,8 @@ def transform(
     search_params = json.loads(search_params)
     logger.info(f"Search params: {search_params}")
 
+    os.environ["AWS_REQUEST_PAYER"] = "requester"
+
     AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
     AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
