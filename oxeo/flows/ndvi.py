@@ -10,6 +10,7 @@ import pandas as pd
 import prefect
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
+from pip._internal.operations import freeze
 from prefect import Flow, Parameter, task
 from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
@@ -70,17 +71,27 @@ def transform(
     logger.info(f"Search params: {search_params}")
 
     os.environ["AWS_REQUEST_PAYER"] = "requester"
+    os.environ["AWS_REGION"] = "eu-central-1"
     os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
     os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
 
     AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
+    AWS_REGION = os.environ.get("AWS_REGION")
     AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 
     logger.info("PRINT ENV")
     logger.info(f"AWS_REQUEST_PAYER={AWS_REQUEST_PAYER}")
+    logger.info(f"AWS_REGION={AWS_REGION}")
     logger.info(f"AWS_ACCESS_KEY_ID={AWS_ACCESS_KEY_ID}")
     logger.info(f"AWS_SECRET_ACCESS_KEY={AWS_SECRET_ACCESS_KEY}")
+    logger.info("ENVIRON")
+    logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
+
+    logger.info("PKGS")
+    pkgs = freeze.freeze()
+    pkgs = [pkg for pkg in pkgs]
+    logger.info(";".join(pkgs))
 
     bbox = BBox(box, crs=CRS.WGS84)
 
