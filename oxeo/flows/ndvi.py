@@ -61,19 +61,12 @@ def transform(
     catalog: str,
     data_collection: str,
     search_params: str,
-    AWS_ACCESS_KEY_ID: str,
-    AWS_SECRET_ACCESS_KEY: str,
 ) -> list[EventCreate]:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
 
     search_params = json.loads(search_params)
     logger.info(f"Search params: {search_params}")
-
-    os.environ["AWS_REQUEST_PAYER"] = "requester"
-    os.environ["AWS_REGION"] = "eu-central-1"
-    os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
-    os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
 
     AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
     AWS_REGION = os.environ.get("AWS_REGION")
@@ -218,6 +211,12 @@ def create_flow():
         cpu_request=4,
         memory_limit="16G",
         memory_request="16G",
+        env={
+            "AWS_REQUEST_PAYER": "requester",
+            "AWS_REGION": "eu-central-1",
+            "AWS_ACCESS_KEY_ID": PrefectSecret("AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": PrefectSecret("AWS_SECRET_ACCESS_KEY"),
+        },
     )
     executor = DaskExecutor(
         cluster_class=dynamic_cluster,
@@ -237,8 +236,6 @@ def create_flow():
 
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")
-        AWS_ACCESS_KEY_ID = PrefectSecret("AWS_ACCESS_KEY_ID")
-        AWS_SECRET_ACCESS_KEY = PrefectSecret("AWS_SECRET_ACCESS_KEY")
         aoi_id = Parameter(name="aoi_id", default=1)
 
         start_datetime = Parameter(name="start_datetime", default="2020-01-01")
@@ -262,8 +259,6 @@ def create_flow():
             catalog,
             data_collection,
             search_params,
-            AWS_ACCESS_KEY_ID,
-            AWS_SECRET_ACCESS_KEY,
         )
         _ = load(events, api_username, api_password)
 
