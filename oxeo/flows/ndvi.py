@@ -60,6 +60,8 @@ def transform(
     catalog: str,
     data_collection: str,
     search_params: str,
+    AWS_ACCESS_KEY_ID: str,
+    AWS_SECRET_ACCESS_KEY: str,
 ) -> list[EventCreate]:
     logger = prefect.context.get("logger")
     logger.info("NDVI transforming.")
@@ -68,6 +70,8 @@ def transform(
     logger.info(f"Search params: {search_params}")
 
     os.environ["AWS_REQUEST_PAYER"] = "requester"
+    os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
+    os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
 
     AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
     AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
@@ -222,7 +226,10 @@ def create_flow():
 
         api_username = "admin@oxfordeo.com"
         api_password = PrefectSecret("API_PASSWORD")
+        AWS_ACCESS_KEY_ID = PrefectSecret("AWS_ACCESS_KEY_ID")
+        AWS_SECRET_ACCESS_KEY = PrefectSecret("AWS_SECRET_ACCESS_KEY")
         aoi_id = Parameter(name="aoi_id", default=1)
+
         start_datetime = Parameter(name="start_datetime", default="2020-01-01")
         end_datetime = Parameter(name="end_datetime", default="2020-01-08")
         catalog = Parameter(
@@ -244,6 +251,8 @@ def create_flow():
             catalog,
             data_collection,
             search_params,
+            AWS_ACCESS_KEY_ID,
+            AWS_SECRET_ACCESS_KEY,
         )
         _ = load(events, api_username, api_password)
 
