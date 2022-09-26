@@ -3,6 +3,7 @@ import os
 from datetime import timedelta
 from typing import Optional
 
+import boto3
 import geopandas as gpd
 import httpx
 import numpy as np
@@ -17,6 +18,8 @@ from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
+from rasterio.session import AWSSession
+from rasterio.windows import Window
 from sentinelhub import CRS, BBox
 from stackstac.rio_env import LayeredEnv
 
@@ -79,6 +82,7 @@ def transform(
     os.environ["AWS_REQUEST_PAYER"] = "requester"
     os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
     os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+    os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "YES"
 
     AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
     AWS_REGION = os.environ.get("AWS_REGION")
@@ -95,19 +99,22 @@ def transform(
     url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
     ds = rasterio.open(url)
 
+    # 1. test read window
+    w = Window(1000, 1000, 500, 500)
+    data = ds.read(window=w)
+    logger.info(f"DATA={data.mean()}")
+
+    # 2. test subprocess cli : aws s3 ls s3://usgs-landsat/collection02/level-2/standard/etm/2013/169/074/LE07_L2SP_169074_20130506_20200907_02_T1/ --request-payer | grep LE07_L2SP_169074_20130506_20200907_02_T1_SR_B3 # noqa
+
+    # 3. boto3 session as env
+    s = boto3.session.Session(
+        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    )
+
     logger.info(f"WIDTH={ds.width}")
 
-    env = LayeredEnv(
-        always={
-            kk: os.environ.get(kk)
-            for kk in [
-                "AWS_REQUEST_PAYER",
-                "AWS_REGION",
-                "AWS_ACCESS_KEY_ID",
-                "AWS_SECRET_ACCESS_KEY",
-            ]
-        }
-    )
+    env = LayeredEnv(always=rasterio.Env(AWSSession(s)))
 
     logger.info("PKGS")
     pkgs = freeze.freeze()
