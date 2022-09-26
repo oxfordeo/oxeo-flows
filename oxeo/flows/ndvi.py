@@ -3,25 +3,19 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-import boto3
 import geopandas as gpd
 import httpx
 import numpy as np
 import pandas as pd
 import prefect
-import rasterio
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
-from pip._internal.operations import freeze
 from prefect import Flow, Parameter, task
 from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
-from rasterio.session import AWSSession
-from rasterio.windows import Window
 from sentinelhub import CRS, BBox
-from stackstac.rio_env import LayeredEnv
 
 from oxeo.flows.models import EventCreate
 from oxeo.water.models.ndvi import NDVIPredictor
@@ -95,31 +89,45 @@ def transform(
     logger.info("ENVIRON")
     logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
 
+    if os.path.exists("~/.aws/credentials"):
+        with open("~/.aws/credentials") as f:
+            creds = f.read()
+            logger.info("CREDS")
+            logger.info(creds)
+
+    else:
+        if not os.path.exists("~/.aws"):
+            os.mkdir("~/.aws")
+        with open("~/.aws/credentials", "w") as f:
+            f.write("[default]\n")
+            f.write(f"aws_access_key_id={AWS_ACCESS_KEY_ID}\n")
+            f.write(f"aws_secret_access_key={AWS_SECRET_ACCESS_KEY}\n")
+            f.write("region=eu-central-1\n")
+
     # test rasterio open
-    url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
-    ds = rasterio.open(url)
+    # url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
+    # ds = rasterio.open(url)
 
     # 1. test read window
-    w = Window(1000, 1000, 500, 500)
-    data = ds.read(window=w)
-    logger.info(f"DATA={data.mean()}")
+    # w = Window(1000, 1000, 500, 500)
+    # data = ds.read(window=w)
+    # logger.info(f"DATA={data.mean()}")
+    # logger.info(f"WIDTH={ds.width}")
 
     # 2. test subprocess cli : aws s3 ls s3://usgs-landsat/collection02/level-2/standard/etm/2013/169/074/LE07_L2SP_169074_20130506_20200907_02_T1/ --request-payer | grep LE07_L2SP_169074_20130506_20200907_02_T1_SR_B3 # noqa
 
     # 3. boto3 session as env
-    s = boto3.session.Session(
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    )
+    # s = boto3.session.Session(
+    #     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+    #     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    # )
 
-    logger.info(f"WIDTH={ds.width}")
+    env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
 
-    env = LayeredEnv(always=rasterio.Env(AWSSession(s)))
-
-    logger.info("PKGS")
-    pkgs = freeze.freeze()
-    pkgs = [pkg for pkg in pkgs]
-    logger.info(";".join(pkgs))
+    # logger.info("PKGS")
+    # pkgs = freeze.freeze()
+    # pkgs = [pkg for pkg in pkgs]
+    # logger.info(";".join(pkgs))
 
     bbox = BBox(box, crs=CRS.WGS84)
 
@@ -309,8 +317,8 @@ if __name__ == "__main__":
     flow.run(
         parameters=dict(
             aoi_id=2179,
-            start_datetime="2013-01-01",
-            end_datetime="2015-12-31",
+            start_datetime="1981-01-01",
+            end_datetime="2021-12-31",
             catalog="https://landsatlook.usgs.gov/stac-server",
             data_collection="landsat-c2l2-sr",
             search_params=json.dumps(
