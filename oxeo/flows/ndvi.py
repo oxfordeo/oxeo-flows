@@ -89,16 +89,24 @@ def transform(
     logger.info("ENVIRON")
     logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
 
-    if os.path.exists("~/.aws/credentials"):
-        with open("~/.aws/credentials") as f:
+    if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
+        logger.info("Found creds")
+        with open(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials"))
+        ) as f:
             creds = f.read()
             logger.info("CREDS")
             logger.info(creds)
 
     else:
-        if not os.path.exists("~/.aws"):
-            os.mkdir("~/.aws")
-        with open("~/.aws/credentials", "w") as f:
+        if not os.path.exists(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws"))
+        ):
+            os.mkdir(os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")))
+        with open(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")),
+            "w",
+        ) as f:
             f.write("[default]\n")
             f.write(f"aws_access_key_id={AWS_ACCESS_KEY_ID}\n")
             f.write(f"aws_secret_access_key={AWS_SECRET_ACCESS_KEY}\n")
@@ -317,17 +325,17 @@ if __name__ == "__main__":
     flow.run(
         parameters=dict(
             aoi_id=2179,
-            start_datetime="1981-01-01",
+            start_datetime="2015-01-01",
             end_datetime="2021-12-31",
-            catalog="https://landsatlook.usgs.gov/stac-server",
-            data_collection="landsat-c2l2-sr",
-            search_params=json.dumps(
-                {
-                    "query": {
-                        "eo:cloud_cover": {"gte": 0, "lte": 10},
-                    }
-                }
-            ),
+            # catalog="https://landsatlook.usgs.gov/stac-server",
+            # data_collection="landsat-c2l2-sr",
+            # search_params=json.dumps(
+            #    {
+            #        "query": {
+            #            "eo:cloud_cover": {"gte": 0, "lte": 10},
+            #        }
+            #    }
+            # ),
         ),
         executor=LocalExecutor(),
     )
