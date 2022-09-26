@@ -8,8 +8,6 @@ import httpx
 import numpy as np
 import pandas as pd
 import prefect
-import rasterio
-import stackstac
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task
@@ -100,19 +98,20 @@ def transform(
             logger.info("CREDS")
             logger.info(creds)
     #
-    # else:
-    #    if not os.path.exists(
-    #        os.path.exists(os.path.join(os.environ.get("HOME"), ".aws"))
-    #    ):
-    #        os.mkdir(os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")))
-    #    with open(
-    #        os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")),
-    #        "w",
-    #    ) as f:
-    #        f.write("[default]\n")
-    #        f.write(f"aws_access_key_id={AWS_ACCESS_KEY_ID}\n")
-    #        f.write(f"aws_secret_access_key={AWS_SECRET_ACCESS_KEY}\n")
-    #        f.write("region=eu-central-1\n")
+    else:
+        logger.info("no creds")
+        if not os.path.exists(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws"))
+        ):
+            os.mkdir(os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")))
+        with open(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")),
+            "w",
+        ) as f:
+            f.write("[default]\n")
+            f.write(f"aws_access_key_id={AWS_ACCESS_KEY_ID}\n")
+            f.write(f"aws_secret_access_key={AWS_SECRET_ACCESS_KEY}\n")
+            f.write("region=eu-central-1\n")
 
     # test rasterio open
     # url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
@@ -133,17 +132,17 @@ def transform(
     #     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
     # )
 
-    env = stackstac.DEFAULT_GDAL_ENV.updated(
-        always=dict(
-            session=rasterio.session.AWSSession(
-                region_name="eu-central-1",
-                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-            )
-        )
-    )
+    # env = stackstac.DEFAULT_GDAL_ENV.updated(
+    #    always=dict(
+    #        session=rasterio.session.AWSSession(
+    #            region_name="eu-central-1",
+    #            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+    #            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    #        )
+    #    )
+    # )
 
-    # env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
+    env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
 
     # logger.info("PKGS")
     # pkgs = freeze.freeze()
