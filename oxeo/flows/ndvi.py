@@ -8,6 +8,7 @@ import httpx
 import numpy as np
 import pandas as pd
 import prefect
+import rasterio
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from pip._internal.operations import freeze
@@ -17,6 +18,7 @@ from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
 from prefect.tasks.secrets import PrefectSecret
 from sentinelhub import CRS, BBox
+from stackstac.rio_env import LayeredEnv
 
 from oxeo.flows.models import EventCreate
 from oxeo.water.models.ndvi import NDVIPredictor
@@ -89,6 +91,24 @@ def transform(
     logger.info("ENVIRON")
     logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
 
+    # test rasterio open
+    url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
+    ds = rasterio.open(url)
+
+    logger.info(f"WIDTH={ds.width}")
+
+    env = LayeredEnv(
+        always={
+            kk: os.environ.get(kk)
+            for kk in [
+                "AWS_REQUEST_PAYER",
+                "AWS_REGION",
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+            ]
+        }
+    )
+
     logger.info("PKGS")
     pkgs = freeze.freeze()
     pkgs = [pkg for pkg in pkgs]
@@ -103,6 +123,7 @@ def transform(
         bbox=bbox,
         time_interval=(start_datetime, end_datetime),
         search_params=search_params,
+        env=env,
     )
 
     # call the compute with the dask backend
