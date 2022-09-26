@@ -70,6 +70,9 @@ def transform(
     search_params = json.loads(search_params)
     logger.info(f"Search params: {search_params}")
 
+    os.environ[
+        "AWS_ROLE_ARN"
+    ] = "arn:aws:iam::413730540186:role/eksctl-oxeo-eks-cluster-ServiceRole-EGMEOTXRMYW9"
     os.environ["AWS_REGION"] = "eu-central-1"
     os.environ["AWS_REQUEST_PAYER"] = "requester"
     os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
