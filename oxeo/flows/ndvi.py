@@ -3,7 +3,6 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-import boto3
 import geopandas as gpd
 import httpx
 import numpy as np
@@ -92,14 +91,14 @@ def transform(
     logger.info("ENVIRON")
     logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
 
-    # if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
-    #    logger.info("Found creds")
-    #    with open(
-    #        os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials"))
-    #    ) as f:
-    #        creds = f.read()
-    #        logger.info("CREDS")
-    #        logger.info(creds)
+    if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
+        logger.info("Found creds")
+        with open(
+            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials"))
+        ) as f:
+            creds = f.read()
+            logger.info("CREDS")
+            logger.info(creds)
     #
     # else:
     #    if not os.path.exists(
@@ -128,13 +127,20 @@ def transform(
     # 2. test subprocess cli : aws s3 ls s3://usgs-landsat/collection02/level-2/standard/etm/2013/169/074/LE07_L2SP_169074_20130506_20200907_02_T1/ --request-payer | grep LE07_L2SP_169074_20130506_20200907_02_T1_SR_B3 # noqa
 
     # 3. boto3 session as env
-    s = boto3.session.Session(
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    )
+    # s = boto3.session.Session(
+    #     region_name="eu-central-1",
+    #     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+    #     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    # )
 
     env = stackstac.DEFAULT_GDAL_ENV.updated(
-        always=dict(session=rasterio.session.AWSSession(s))
+        always=dict(
+            session=rasterio.session.AWSSession(
+                region_name="eu-central-1",
+                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            )
+        )
     )
 
     # env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
