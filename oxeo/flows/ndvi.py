@@ -70,10 +70,13 @@ def transform(
     search_params = json.loads(search_params)
     logger.info(f"Search params: {search_params}")
 
-    AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
-    AWS_REGION = os.environ.get("AWS_REGION")
+    os.environ["AWS_REGION"] = "eu-central-1"
+    os.environ["AWS_REQUEST_PAYER"] = "requester"
     os.environ["AWS_ACCESS_KEY_ID"] = AWS_ACCESS_KEY_ID
     os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+
+    AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
+    AWS_REGION = os.environ.get("AWS_REGION")
 
     logger.info("PRINT ENV")
     logger.info(f"AWS_REQUEST_PAYER={AWS_REQUEST_PAYER}")
