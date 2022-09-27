@@ -91,21 +91,17 @@ def transform(
 
     if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
         logger.info("Found creds")
-        with open(
-            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials"))
-        ) as f:
+        with open(os.path.join(os.environ.get("HOME"), ".aws", "credentials")) as f:
             creds = f.read()
             logger.info("CREDS")
             logger.info(creds)
     #
     else:
         logger.info("no creds")
-        if not os.path.exists(
-            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws"))
-        ):
-            os.mkdir(os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")))
+        if not os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")):
+            os.mkdir(os.path.join(os.environ.get("HOME"), ".aws"))
         with open(
-            os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")),
+            os.path.join(os.environ.get("HOME"), ".aws", "credentials"),
             "w",
         ) as f:
             f.write("[default]\n")
