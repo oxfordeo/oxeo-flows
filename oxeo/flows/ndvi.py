@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 from datetime import timedelta
 from typing import Optional
 
@@ -139,6 +140,11 @@ def transform(
     # )
 
     env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
+
+    cmd = "aws sts get-caller-identity"
+    res = subprocess.run(cmd.split(" "), capture_output=True)
+    logger.info("CLI call")
+    logger.info(res.stdout.decode("utf-8"))
 
     # logger.info("PKGS")
     # pkgs = freeze.freeze()
