@@ -15,7 +15,16 @@ RUN apt-get update && \
         libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
         wget ca-certificates curl llvm libncurses5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev mecab-ipadic-utf8 \
-        openssh-client git software-properties-common
+        openssh-client git software-properties-common unzip
+
+# Install aws CLI
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip
+
+RUN ./aws/install
+
+RUN echo "$(aws --version)"
+
 
 # Pyenv
 ENV PYENV_ROOT /root/.pyenv
