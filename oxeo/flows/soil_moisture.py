@@ -19,7 +19,7 @@ from oxeo.water.models.soil_moisture import SoilMoisturePredictor
 
 Box = tuple[float, float, float, float]
 
-image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:torch-latest"
+image = "413730540186.dkr.ecr.eu-central-1.amazonaws.com/flows:latest"
 repo_name = "oxfordeo/oxeo-flows"
 prefect_secret_github_token = "GITHUB"
 
