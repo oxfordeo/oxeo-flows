@@ -12,6 +12,7 @@ import prefect
 from dask.distributed import LocalCluster
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task
+from prefect.client import Secret
 from prefect.executors import DaskExecutor, LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -90,6 +91,7 @@ def transform(
     logger.info("ENVIRON")
     logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
 
+    """
     if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
         logger.info("Found creds")
         with open(os.path.join(os.environ.get("HOME"), ".aws", "credentials")) as f:
@@ -138,7 +140,7 @@ def transform(
     #        )
     #    )
     # )
-
+    """
     env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
 
     cmd = "aws sts get-caller-identity"
@@ -247,6 +249,13 @@ def dynamic_cluster(**kwargs):
         }
     }
 
+    env = {
+        "AWS_REQUEST_PAYER": "requester",
+        "AWS_REGION": "eu-central-1",
+        "AWS_ACCESS_KEY_ID": Secret("AWS_ACCESS_KEY_ID").get(),
+        "AWS_SECRET_ACCESS_KEY": Secret("AWS_SECRET_ACCESS_KEY").get(),
+    }
+
     pod_spec = make_pod_spec(
         image=image,
         extra_container_config=container_config,
@@ -261,6 +270,7 @@ def dynamic_cluster(**kwargs):
         n_workers=n_workers,
         pod_template=pod_spec,
         scheduler_pod_template=root_spec,
+        env=env,
         **kwargs,
     )
 
@@ -336,20 +346,21 @@ def create_flow():
 flow = create_flow()
 
 if __name__ == "__main__":
-    flow.run(
-        parameters=dict(
-            aoi_id=2179,
-            start_datetime="2015-01-01",
-            end_datetime="2021-12-31",
-            # catalog="https://landsatlook.usgs.gov/stac-server",
-            # data_collection="landsat-c2l2-sr",
-            # search_params=json.dumps(
-            #    {
-            #        "query": {
-            #            "eo:cloud_cover": {"gte": 0, "lte": 10},
-            #        }
-            #    }
-            # ),
-        ),
-        executor=LocalExecutor(),
-    )
+    for ii in [2091, 2092, 2093, 2094, 2095, 2096, 2097, 2098, 2099]:
+        flow.run(
+            parameters=dict(
+                aoi_id=ii,
+                start_datetime="1981-01-01",
+                end_datetime="2021-12-31",
+                catalog="https://landsatlook.usgs.gov/stac-server",
+                data_collection="landsat-c2l2-sr",
+                search_params=json.dumps(
+                    {
+                        "query": {
+                            "eo:cloud_cover": {"gte": 0, "lte": 10},
+                        }
+                    }
+                ),
+            ),
+            executor=LocalExecutor(),
+        )
