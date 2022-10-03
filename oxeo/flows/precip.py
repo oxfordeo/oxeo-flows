@@ -228,14 +228,12 @@ def transform(
 
             # seas_df_summary["tp"] += seas_df_summary["chirps"]
 
-        seas_df_summary["valid-mo"] = (
-            seas_df_summary["valid-yr-mo"].str.split("-").str[1].astype(int).astype(str)
-        )
+        seas_df_summary["pred-mo"] = seas_df_summary["time"].dt.month.astype(str)
 
-        seas_df_summary["chirps_SPI_mean"] = seas_df_summary["valid-mo"].map(
+        seas_df_summary["chirps_SPI_mean"] = seas_df_summary["pred-mo"].map(
             aoi["properties"]["CHIRPS_SPI"]["mean"]
         )
-        seas_df_summary["chirps_SPI_std"] = seas_df_summary["valid-mo"].map(
+        seas_df_summary["chirps_SPI_std"] = seas_df_summary["pred-mo"].map(
             aoi["properties"]["CHIRPS_SPI"]["std"]
         )
         seas_df_summary["chirps_SPI"] = (
@@ -243,13 +241,13 @@ def transform(
         ) / (seas_df_summary["chirps_SPI_std"] * 13 / 30.5)
 
         seas_df_summary["SPI_mean"] = seas_df_summary.apply(
-            lambda row: aoi["properties"]["SEAS_SPI"][row["valid-mo"]]["mean"][
+            lambda row: aoi["properties"]["SEAS_SPI"][row["pred-mo"]]["mean"][
                 str(float(row["RANK"]))
             ],
             axis=1,
         )
         seas_df_summary["SPI_std"] = seas_df_summary.apply(
-            lambda row: aoi["properties"]["SEAS_SPI"][row["valid-mo"]]["std"][
+            lambda row: aoi["properties"]["SEAS_SPI"][row["pred-mo"]]["std"][
                 str(float(row["RANK"]))
             ],
             axis=1,
