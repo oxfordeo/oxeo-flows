@@ -133,6 +133,12 @@ def predict(
         }  # noqa
         const_str = "landsat"
 
+    print(f"URL/catalog: {URL}")
+    print(f"const_str: {const_str}")
+    print(f"collection: {collection}")
+    print("search params")
+    print(json.dumps(search_params))
+
     print("Creating graph")
     predictor = DaskSegmentationPredictor(
         ckpt_path=ckpt_path,
