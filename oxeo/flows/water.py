@@ -96,7 +96,6 @@ def predict(
     ], """constalltion must be one of ['sentinel-2','landsat-5','landsat-7','landsat-8']"""
 
     shconfig = SHConfig()
-    shconfig.sh_base_url = USWEST_URL
     shconfig.sh_client_id = str(Secret("SH_CLIENT_ID").get())
     shconfig.sh_client_secret = str(Secret("SH_CLIENT_SECRET").get())
     os.environ["AWS_REQUEST_PAYER"] = "requester"
@@ -124,11 +123,12 @@ def predict(
         const_str = "sentinel-2"
     elif "landsat" in constellation.lower():
         URL = LANDSATLOOK_URL
+        shconfig.sh_base_url = USWEST_URL
         collection = "landsat-c2l2-sr"
         search_params = {
             "query": {
                 "platform": {"in": [constellation.upper().replace("-", "_")]},
-                "eo:cloud_cover": {"gte": 0, "lte": 10},
+                "eo:cloud_cover": {"gte": 0, "lte": 20},
             }
         }  # noqa
         const_str = "landsat"
@@ -153,7 +153,7 @@ def predict(
     mask = reconstruct_image_from_patches(
         stack, revisits, target_h, target_w, patch_size=250
     )
-    ts = reduce_to_timeseries(mask)
+    ts = reduce_to_timeseries(mask).compute()
     dates = aoi.time.data
 
     print("Create Events")
@@ -162,7 +162,7 @@ def predict(
         dict(
             labels=["water_extents"],
             aoi_id=aoi_id,
-            datetime=pd.Timestamp(d).date(),
+            datetime=pd.Timestamp(d).date().isoformat()[0:10],
             keyed_values={"water_pixels": int(w)},
         )
         for d, w in zip(dates, ts)
@@ -240,4 +240,12 @@ def create_flow():
 flow = create_flow()
 
 if __name__ == "__main__":
-    flow.run(executor=LocalExecutor())
+    flow.run(
+        parameters=dict(
+            aoi_id=2015,
+            start_date="2021-01-01",
+            end_date="2021-12-31",
+            constellation="sentinel-2",
+        ),
+        executor=LocalExecutor(),
+    )
