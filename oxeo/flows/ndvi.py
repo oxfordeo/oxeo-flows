@@ -80,68 +80,10 @@ def transform(
     os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
     os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "YES"
 
-    AWS_REQUEST_PAYER = os.environ.get("AWS_REQUEST_PAYER")
-    AWS_REGION = os.environ.get("AWS_REGION")
+    os.environ.get("AWS_REQUEST_PAYER")
+    os.environ.get("AWS_REGION")
 
-    logger.info("PRINT ENV")
-    logger.info(f"AWS_REQUEST_PAYER={AWS_REQUEST_PAYER}")
-    logger.info(f"AWS_REGION={AWS_REGION}")
-    logger.info(f"AWS_ACCESS_KEY_ID={AWS_ACCESS_KEY_ID}")
-    logger.info(f"AWS_SECRET_ACCESS_KEY={AWS_SECRET_ACCESS_KEY}")
-    logger.info("ENVIRON")
-    logger.info(json.dumps({kk: vv for kk, vv in os.environ.items()}))
-
-    """
-    if os.path.exists(os.path.join(os.environ.get("HOME"), ".aws", "credentials")):
-        logger.info("Found creds")
-        with open(os.path.join(os.environ.get("HOME"), ".aws", "credentials")) as f:
-            creds = f.read()
-            logger.info("CREDS")
-            logger.info(creds)
-    #
-    else:
-        logger.info("no creds")
-        if not os.path.exists(os.path.join(os.environ.get("HOME"), ".aws")):
-            os.mkdir(os.path.join(os.environ.get("HOME"), ".aws"))
-        with open(
-            os.path.join(os.environ.get("HOME"), ".aws", "credentials"),
-            "w",
-        ) as f:
-            f.write("[default]\n")
-            f.write(f"aws_access_key_id={AWS_ACCESS_KEY_ID}\n")
-            f.write(f"aws_secret_access_key={AWS_SECRET_ACCESS_KEY}\n")
-            f.write("region=eu-central-1\n")
-
-    # test rasterio open
-    # url = "s3://usgs-landsat/collection02/level-2/standard/etm/2012/169/074/LE07_L2SP_169074_20120519_20200908_02_T1/LE07_L2SP_169074_20120519_20200908_02_T1_SR_B4.TIF"
-    # ds = rasterio.open(url)
-
-    # 1. test read window
-    # w = Window(1000, 1000, 500, 500)
-    # data = ds.read(window=w)
-    # logger.info(f"DATA={data.mean()}")
-    # logger.info(f"WIDTH={ds.width}")
-
-    # 2. test subprocess cli : aws s3 ls s3://usgs-landsat/collection02/level-2/standard/etm/2013/169/074/LE07_L2SP_169074_20130506_20200907_02_T1/ --request-payer | grep LE07_L2SP_169074_20130506_20200907_02_T1_SR_B3 # noqa
-
-    # 3. boto3 session as env
-    # s = boto3.session.Session(
-    #     region_name="eu-central-1",
-    #     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-    #     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    # )
-
-    # env = stackstac.DEFAULT_GDAL_ENV.updated(
-    #    always=dict(
-    #        session=rasterio.session.AWSSession(
-    #            region_name="eu-central-1",
-    #            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-    #            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    #        )
-    #    )
-    # )
-    """
-    env = None  # LayeredEnv(always=rasterio.Env(AWSSession(s)))
+    env = None
 
     cmd = "aws sts get-caller-identity"
     res = subprocess.run(cmd.split(" "), capture_output=True)
@@ -165,6 +107,11 @@ def transform(
         env=env,
     )
 
+    if "sentinel-s2" in data_collection:
+        constellations = ["sentinel-2"] * ndvi.shape[0]
+    else:
+        constellations = ndvi.platform.data.tolist()
+
     # call the compute with the dask backend
     ndvi_red = ndvi.mean(dim=["x", "y"])
     res = ndvi_red.compute()
@@ -178,9 +125,9 @@ def transform(
             labels=["ndvi"],
             aoi_id=aoi_id,
             datetime=pd.Timestamp(d).date().isoformat()[0:10],
-            keyed_values={"mean_value": float(w)},
+            keyed_values={"mean_value": float(w), "constellation": const},
         )
-        for d, w in zip(dates, ndvi_ts)
+        for const, d, w in zip(constellations, dates, ndvi_ts)
     ]
 
     return events
