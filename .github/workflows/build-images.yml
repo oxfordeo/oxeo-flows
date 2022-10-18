@@ -41,9 +41,9 @@ jobs:
           DOCKER_BUILDKIT: 1
         run: |
           docker build \
-          --build-arg  BUILDKIT_INLINE_CACHE=1 \
+          --build-arg  BUILDKIT_INLINE_CACHE=0 \
           --build-arg  WATER=water \
-          --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          # --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --tag        $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --file       infra/Dockerfile \
           --ssh        default .
@@ -64,9 +64,9 @@ jobs:
           DOCKER_BUILDKIT: 1
         run: |
           docker build \
-          --build-arg  BUILDKIT_INLINE_CACHE=1 \
+          --build-arg  BUILDKIT_INLINE_CACHE=0 \
           --build-arg  WATER=torch \
-          --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
+          # --cache-from $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
           --tag        $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
           --file       infra/Dockerfile \
           --ssh        default .
