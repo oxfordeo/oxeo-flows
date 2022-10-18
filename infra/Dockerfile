@@ -9,6 +9,8 @@ ENV PYTHONUNBUFFERED=1
 ENV TZ=UTC
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG WATER
+
 # Install deps
 RUN apt-get update && \
     apt-get install -y --no-install-recommends make build-essential \
@@ -61,4 +63,4 @@ COPY . oxeo-flows
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh pip install ./oxeo-flows[water]
 
-RUN if [ "$WATER" = "torch" ] ; then pip install dask[distributed] toolz hydra-core hydra_colorlog kornia lightning-bolts pymasker python-dotenv pytorch_lightning rich rasterio s2cloudless torch torchvision wandb segmentation_models_pytorch gcsfs matplotlib ; fi
+RUN if [ "$WATER" = "torch" ]; then pip install dask[distributed] toolz hydra-core hydra_colorlog kornia lightning-bolts pymasker python-dotenv pytorch_lightning rich rasterio s2cloudless torch torchvision wandb segmentation_models_pytorch gcsfs matplotlib; fi
