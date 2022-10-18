@@ -40,7 +40,7 @@ jobs:
           #IMAGE_TAG: ${{ github.sha }}
           DOCKER_BUILDKIT: 1
         run: |
-          docker build \
+          docker build --no-cache \
           --build-arg  WATER=water \
           --tag        $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --file       infra/Dockerfile \
@@ -61,7 +61,7 @@ jobs:
           #IMAGE_TAG: ${{ github.sha }}
           DOCKER_BUILDKIT: 1
         run: |
-          docker build \
+          docker build --no-cache \
           --build-arg  WATER=torch \
           --tag        $ECR_REGISTRY/$ECR_REPOSITORY:torch-latest \
           --file       infra/Dockerfile \
