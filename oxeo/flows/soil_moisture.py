@@ -8,7 +8,6 @@ import pandas as pd
 import prefect
 from dask_kubernetes import KubeCluster, make_pod_spec
 from prefect import Flow, Parameter, task
-from prefect.client import Secret
 from prefect.executors import LocalExecutor
 from prefect.run_configs import KubernetesRun
 from prefect.storage import GitHub
@@ -81,8 +80,12 @@ def predict(
 ) -> list[dict]:
 
     shconfig = SHConfig()
-    shconfig.sh_client_id = str(Secret("SH_CLIENT_ID").get())
-    shconfig.sh_client_secret = str(Secret("SH_CLIENT_SECRET").get())
+    SH_CLIENT_ID = "e1867965-e152-4f57-9300-0c61e6d2af77"
+    SH_CLIENT_SECRET = "*0EL5&Uoom>f8Uq(%UX!Yb9dOv>0Uv&0E%sa8&o!"
+    shconfig.sh_client_id = SH_CLIENT_ID  # str(Secret("SH_CLIENT_ID").get())
+    shconfig.sh_client_secret = (
+        SH_CLIENT_SECRET  # str(Secret("SH_CLIENT_SECRET").get())
+    )
     os.environ["AWS_REQUEST_PAYER"] = "requester"
 
     eu_catalog = SentinelHubCatalog(shconfig)
@@ -206,11 +209,20 @@ def create_flow():
 flow = create_flow()
 
 if __name__ == "__main__":
-    flow.run(
-        parameters=dict(
-            aoi_id=2179,
-            start_date="2016-01-01",
-            end_date="2021-01-01",
-        ),
-        executor=LocalExecutor(),
-    )
+
+    from loguru import logger
+
+    # do_ids = json.load(open('./select_ag.json','r'))
+
+    for _id in [2179]:
+
+        logger.info(f"RUNNIGN SM FLOW: {_id}")
+
+        flow.run(
+            parameters=dict(
+                aoi_id=_id,
+                start_date="2016-01-01",
+                end_date="2021-12-31",
+            ),
+            executor=LocalExecutor(),
+        )
