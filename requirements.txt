@@ -11,7 +11,7 @@ stackstac>=0.4.1
 rasterio>=1.3.2
 #oxeo-api @ git+ssh://git@github.com/oxfordeo/oxeo-api.git
 h2ox-reducer @ git+https://github.com/H2Oxford/h2ox-reducer.git
-sentinelhub~=3.7
+sentinelhub==3.7
 xarray[io]
 gcsfs
 loguru
