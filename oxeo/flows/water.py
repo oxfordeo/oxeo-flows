@@ -8,7 +8,6 @@ import pandas as pd
 import prefect
 import s3fs
 from dask_kubernetes import KubeCluster, make_pod_spec
-from pip._internal.operations import freeze
 from prefect import Flow, Parameter, task
 from prefect.client import Secret
 from prefect.executors import LocalExecutor
@@ -130,18 +129,6 @@ def predict(
         }  # noqa
         const_str = "landsat"
 
-    print("PPKGS")
-    pkgs = freeze.freeze()
-    for pkg in pkgs:
-        print(pkg)
-
-    print(f"URL/catalog: {URL}")
-    print(f"const_str: {const_str}")
-    print(f"collection: {collection}")
-    print("search params")
-    print(json.dumps(search_params))
-    print("SH CONFIG URL BASE", shconfig.sh_base_url)
-
     print("Creating graph")
     predictor = DaskSegmentationPredictor(
         ckpt_path=ckpt_path,
@@ -174,7 +161,7 @@ def predict(
             labels=["water_extents"],
             aoi_id=aoi_id,
             datetime=pd.Timestamp(d).date().isoformat()[0:10],
-            keyed_values={"water_pixels": int(w)},
+            keyed_values={"water_pixels": int(w), "constellation": const_str},
         )
         for d, w in zip(dates, ts)
     ]
