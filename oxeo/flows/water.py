@@ -8,6 +8,7 @@ import pandas as pd
 import prefect
 import s3fs
 from dask_kubernetes import KubeCluster, make_pod_spec
+from pip.operations import freeze
 from prefect import Flow, Parameter, task
 from prefect.client import Secret
 from prefect.executors import LocalExecutor
@@ -115,11 +116,7 @@ def predict(
     if "sentinel" in constellation.lower():
         URL = ELEMENT84_URL
         collection = "sentinel-s2-l2a-cogs"
-        search_params = {
-            "query": {
-                "eo:cloud_cover": {"gte": 0, "lte": 10},
-            }
-        }
+        search_params = {}
         const_str = "sentinel-2"
     elif "landsat" in constellation.lower():
         URL = LANDSATLOOK_URL
@@ -133,17 +130,25 @@ def predict(
         }  # noqa
         const_str = "landsat"
 
+    print("PPKGS")
+    pkgs = freeze.freeze()
+    for pkg in pkgs:
+        print(pkg)
+
     print(f"URL/catalog: {URL}")
     print(f"const_str: {const_str}")
     print(f"collection: {collection}")
     print("search params")
     print(json.dumps(search_params))
+    print("SH CONFIG URL BASE", shconfig.sh_base_url)
 
     print("Creating graph")
     predictor = DaskSegmentationPredictor(
         ckpt_path=ckpt_path,
         fs=fs,
     )
+
+    print("Getting predictions")
     preds, aoi = predictor.predict_stac_aoi(
         constellation=const_str,
         catalog=URL,
@@ -249,7 +254,7 @@ if __name__ == "__main__":
     flow.run(
         parameters=dict(
             aoi_id=2015,
-            start_date="2021-01-01",
+            start_date="2020-01-01",
             end_date="2021-12-31",
             constellation="sentinel-2",
         ),
