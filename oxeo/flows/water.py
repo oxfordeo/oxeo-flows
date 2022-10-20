@@ -8,7 +8,7 @@ import pandas as pd
 import prefect
 import s3fs
 from dask_kubernetes import KubeCluster, make_pod_spec
-from pip.operations import freeze
+from pip._internal.operations import freeze
 from prefect import Flow, Parameter, task
 from prefect.client import Secret
 from prefect.executors import LocalExecutor
